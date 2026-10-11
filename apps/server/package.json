@@ -1,0 +1,24 @@
+{
+  "name": "@orlan/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env ORLAN_DEV_MODE=true tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --external:socket.io --external:sirv --external:zod",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@orlan/game": "*",
+    "@orlan/protocol": "*",
+    "sirv": "^3.0.2",
+    "socket.io": "^4.8.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "cross-env": "^10.0.0",
+    "esbuild": "^0.25.10",
+    "tsx": "^4.20.6"
+  }
+}
