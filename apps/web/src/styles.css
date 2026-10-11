@@ -254,18 +254,32 @@ button { font: inherit; color: inherit; }
 .host-menu summary::-webkit-details-marker { display: none; }
 .host-menu__panel { position: absolute; right: 0; top: 40px; width: 220px; z-index: 40; background: #18322b; box-shadow: var(--shadow); }
 
-.scorebar { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 0.82rem; }
-@media (max-width: 480px) {
-  .scorebar__round, .scorebar__target { font-size: 0.72rem; }
-  .score { padding: 3px 7px; }
+.scorebar { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; font-size: 0.85rem; }
+.scorebar__meta { display: flex; gap: 8px; white-space: nowrap; color: var(--muted); flex: none; }
+@media (min-width: 561px) { .scorebar__meta span + span::before { content: '· '; } }
+.scorebar__scores { display: flex; flex-wrap: nowrap; gap: 6px; list-style: none; margin: 0; padding: 0; min-width: 0; flex: 1; }
+.score {
+  display: flex; align-items: baseline; gap: 5px; min-width: 0;
+  background: var(--surface); padding: 4px 9px; border-radius: 8px; white-space: nowrap;
 }
-.scorebar__round { color: var(--muted); white-space: nowrap; }
-.scorebar__scores { display: flex; flex-wrap: wrap; gap: 4px 6px; list-style: none; margin: 0; padding: 0; min-width: 0; }
-.score { display: flex; align-items: baseline; gap: 5px; background: var(--surface); padding: 4px 9px; border-radius: 8px; white-space: nowrap; }
-.score__value { font-size: 1.1rem; color: var(--accent); }
-.score__captured { color: var(--muted); font-size: 0.7rem; }
+/* Name darf gekürzt werden, Punkte nie */
+.score__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.score__value { flex: none; font-size: 1.1rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+.score__captured { flex: none; color: var(--muted); font-size: 0.7rem; }
 .score.is-winner { outline: 2px solid var(--accent); }
-.scorebar__target { white-space: nowrap; }
+
+/* Smartphone: eine ruhige Zeile – Meta gestapelt, Seiten teilen sich die Breite gleichmäßig */
+@media (max-width: 560px) {
+  .scorebar { gap: 6px; font-size: 0.8rem; }
+  .scorebar__meta { flex-direction: column; gap: 0; font-size: 0.66rem; line-height: 1.2; }
+  .scorebar__scores { gap: 4px; }
+  .score { flex: 1 1 0; justify-content: space-between; padding: 4px 7px; gap: 4px; }
+  .score__value { font-size: 1.05rem; }
+  .score__captured { display: none; }
+}
+@media (max-width: 360px) {
+  .score { padding: 3px 5px; }
+}
 
 .table-area {
   flex: 1; min-height: 0;

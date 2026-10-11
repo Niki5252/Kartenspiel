@@ -84,8 +84,8 @@ export function GameScreen({ view }: { view: RoomView }) {
       title: isHost ? 'Match abbrechen?' : 'Raum verlassen?',
       message: isHost
         ? 'Das laufende Match wird für alle sofort beendet. Alle kehren in die Lobby zurück.'
-        : 'Wenn du den Raum verlässt, wird das Match für alle beendet.',
-      confirmLabel: isHost ? 'Match abbrechen' : 'Verlassen',
+        : 'Wenn du den Raum verlässt, wird das aktuelle Match abgebrochen. Möchtest du wirklich verlassen?',
+      confirmLabel: isHost ? 'Match abbrechen' : 'Raum verlassen',
       danger: true,
       action: () => void (isHost ? call(api.abortMatch) : api.leaveRoom()),
     });

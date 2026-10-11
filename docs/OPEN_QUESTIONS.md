@@ -8,6 +8,7 @@
 | Host verlässt den Raum | Nur bewusstes „Raum verlassen“ (mit Sicherheitsabfrage) schließt den Raum für alle; alle anderen werden informiert und landen auf der Startansicht. Disconnect, Hintergrund oder Reload sind **kein** Verlassen – Reconnect funktioniert weiter. | `room.test.ts` |
 | Host entfernt Spieler (Lobby) | Spieler wird entfernt, Platz wird frei, Raum bleibt. | `room.test.ts` |
 | Host entfernt Spieler (Match) | Match wird abgebrochen, Punkte verworfen, Raum bleibt; alle Verbleibenden kehren in die Lobby zurück, können wieder bereit werden, ein neuer Spieler kann den Platz belegen. | `room.test.ts` |
+| Nicht-Host verlässt bewusst (Match) | Sicherheitsabfrage; danach wird das Match sofort abgebrochen, Punkte verworfen, Raum bleibt, alle Verbleibenden kehren in die Lobby zurück, der Platz wird frei, alle müssen erneut „Bereit“ wählen, neues Match startet bei 0. Reload, kurzer Disconnect, App im Hintergrund und Netzwerkunterbrechung lösen das **nicht** aus. | `room.test.ts`, `socket.test.ts` |
 | Genau eine Aufnahme | Wird sofort automatisch ausgeführt (Zahlenkarte, Dame, König). Keine Auswahl, kein Liegenlassen. | `rules.test.ts` |
 | Mehrere Aufnahmen | Gespielte Karte ist verbindlich; Spieler wählt eine legale Kombination und bestätigt mit „Nehmen“. Gilt nie für den Buben. | `rules.test.ts` |
 | Timer während der Auswahl | Der 10-s-Zugtimer läuft weiter. Bei Ablauf bleibt die gespielte Karte; der Server wählt die beste Kombination (♣2/♦10 → Kreuz → Anzahl → Tischreihenfolge). Keine neue Zufallskarte. | `rules.test.ts` |
@@ -17,13 +18,14 @@
 ## Weitere technische Festlegungen (ohne Regeländerung)
 
 - **Gültige Schnittstellen:** jede Position, bei der beide Teilstapel mindestens 1 Karte haben (1–51).
-- **Nicht-Host verlässt den Raum während eines Matches:** Das Match wird beendet, alle kehren in die Lobby zurück
-  (analog zum Entfernen durch den Host).
 - **Sitzvergabe:** 2/3 Spieler: Host auf Sitz 0, dann Beitrittsreihenfolge. 4 Spieler: Team 1 auf Sitz 0/2, Team 2 auf 1/3.
 - **Rundenauswertung:** wird 12 s angezeigt, danach beginnt automatisch die nächste Runde.
 - **Nach Matchende:** Der Host bringt alle mit „Zurück zur Lobby“ in die Lobby.
 
 ## Noch offen
+
+Keine offenen Regelfragen mehr. Technisch offen:
+
 
 - Sound (inkl. AN/STUMM) und ausgearbeitete Animationen – bewusst zurückgestellt.
 - Persistenz: Räume liegen im Arbeitsspeicher; ein Server-Neustart beendet laufende Räume, nur eine Instanz möglich.

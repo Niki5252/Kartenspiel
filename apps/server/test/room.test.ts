@@ -322,3 +322,101 @@ describe('Tisch/Spieler-Wahl über den Raum', () => {
     expect([host.id, guest.id]).toContain(cutter);
   });
 });
+
+describe('Nicht-Host verlässt bewusst während eines Matches', () => {
+  function threePlayerMatch() {
+    const ctx = makeRoom(3);
+    const host = ctx.room.addPlayer('Host');
+    const b = ctx.room.addPlayer('B');
+    const c = ctx.room.addPlayer('C');
+    for (const p of [host, b, c]) {
+      ctx.room.markOnline(p.id);
+      ctx.room.setReady(p.id, true);
+    }
+    ctx.clock.advance(3000);
+    expect(ctx.room.status).toBe('playing');
+    ctx.room.match!.scores = { seat0: 6, seat1: 9, seat2: 3 }; // simulierter Zwischenstand
+    return { ...ctx, host, b, c };
+  }
+
+  it('bricht das Match ab, verwirft Punkte, Raum bleibt, alle zurück in die Lobby', () => {
+    const { room, host, b, c, closed, removed } = threePlayerMatch();
+    room.leave(b.id);
+    expect(room.closed).toBe(false);
+    expect(closed).toEqual([]);
+    expect(removed).toEqual([b.id]);
+    expect(room.status).toBe('lobby');
+    expect(room.match).toBeNull();
+    expect(room.seats).toBeNull();
+    expect(room.hostId).toBe(host.id);
+    expect(room.players.map((p) => p.id)).toEqual([host.id, c.id]);
+    expect(room.notice).toBe('B hat den Raum verlassen. Das Match wurde beendet.');
+    // Bereit-Status zurückgesetzt -> alle müssen erneut "Bereit" wählen
+    expect(room.players.every((p) => !p.ready)).toBe(true);
+    // Sichten der Verbleibenden zeigen Lobby ohne Match
+    for (const p of room.players) {
+      const v = room.viewFor(p.id);
+      expect(v.status).toBe('lobby');
+      expect(v.match).toBeNull();
+    }
+  });
+
+  it('Platz wird frei, neuer Spieler tritt bei, neues Match startet bei 0 Punkten', () => {
+    const { room, clock, host, b, c } = threePlayerMatch();
+    room.leave(b.id);
+    const newcomer = room.addPlayer('Neu');
+    expect(room.players).toHaveLength(3);
+    // ohne erneutes Bereit startet nichts
+    clock.advance(10_000);
+    expect(room.status).toBe('lobby');
+    for (const p of [host, c, newcomer]) room.setReady(p.id, true);
+    expect(room.status).toBe('countdown');
+    clock.advance(3000);
+    expect(room.status).toBe('playing');
+    expect(room.match!.scores).toEqual({ seat0: 0, seat1: 0, seat2: 0 });
+    expect(room.match!.history).toEqual([]);
+    expect(room.match!.round.number).toBe(1);
+    expect(room.seats).toContain(newcomer.id);
+    expect(room.seats).not.toContain(b.id);
+  });
+
+  it('der ausgetretene Spieler kann sich mit seinen alten Zugangsdaten nicht mehr einwählen', () => {
+    const { room, b } = threePlayerMatch();
+    const token = room.getPlayer(b.id)!.token;
+    room.leave(b.id);
+    expect(room.authenticate(b.id, token)).toBeNull();
+  });
+
+  it('kurzer Disconnect eines Nicht-Hosts bricht das Match NICHT ab', () => {
+    const { room, clock, b } = threePlayerMatch();
+    const scores = { ...room.match!.scores };
+    room.markOffline(b.id);
+    clock.advance(2000);
+    room.markOnline(b.id);
+    expect(room.status).toBe('playing');
+    expect(room.match!.scores).toEqual(scores);
+    expect(room.players).toHaveLength(3);
+  });
+
+  it('längerer Disconnect (App im Hintergrund) bricht das Match NICHT ab – nur Markierung', () => {
+    const { room, clock, b } = threePlayerMatch();
+    room.markOffline(b.id);
+    clock.advance(120_000);
+    expect(room.status).toBe('playing');
+    expect(room.match).not.toBeNull();
+    expect(room.getPlayer(b.id)?.connected).toBe(false);
+    expect(room.seats).toContain(b.id);
+  });
+
+  it('Browser-Reload (offline -> Wiederanmeldung mit Token) bricht das Match NICHT ab', () => {
+    const { room, b } = threePlayerMatch();
+    const scores = { ...room.match!.scores };
+    const token = room.getPlayer(b.id)!.token;
+    room.markOffline(b.id);
+    expect(room.authenticate(b.id, token)?.id).toBe(b.id);
+    room.markOnline(b.id);
+    expect(room.status).toBe('playing');
+    expect(room.match!.scores).toEqual(scores);
+    expect(room.viewFor(b.id).match?.mySeat).toBe(room.seats!.indexOf(b.id));
+  });
+});
