@@ -99,6 +99,9 @@ export function GameScreen({ view }: { view: RoomView }) {
 
   const seatOrder = Array.from({ length: n }, (_, seat) => seat);
   const inPlayZone = round.phase === 'moveAnimation' ? lastMove : null;
+  // Fall A (keine Aufnahme): Karte wird erst nach der Animation sortiert am Tisch angezeigt.
+  const animatingToTable = inPlayZone && inPlayZone.captured.length === 0 ? inPlayZone.card.id : null;
+  const visibleTable = animatingToTable ? round.table.filter((c) => c.id !== animatingToTable) : round.table;
 
   return (
     <main className={`game game--${n}p`}>
@@ -207,17 +210,19 @@ export function GameScreen({ view }: { view: RoomView }) {
             </p>
           )}
 
-          {(inPlayZone || round.pending) && (
-            <PlayZone
-              key={inPlayZone ? `${inPlayZone.seat}-${inPlayZone.card.id}` : `pending-${round.pending!.card.id}`}
-              card={inPlayZone ? inPlayZone.card : round.pending!.card}
-              captured={inPlayZone ? inPlayZone.captured : []}
-              from={POSITION_VECTOR[positionOf(inPlayZone ? inPlayZone.seat : round.pending!.seat)]}
-            />
-          )}
+          <div className="play-slot">
+            {(inPlayZone || round.pending) && (
+              <PlayZone
+                key={inPlayZone ? `${inPlayZone.seat}-${inPlayZone.card.id}` : `pending-${round.pending!.card.id}`}
+                card={inPlayZone ? inPlayZone.card : round.pending!.card}
+                captured={inPlayZone ? inPlayZone.captured : []}
+                from={POSITION_VECTOR[positionOf(inPlayZone ? inPlayZone.seat : round.pending!.seat)]}
+              />
+            )}
+          </div>
 
           <div className="table-cards" aria-label="Tischkarten">
-            {round.table.map((card) => (
+            {visibleTable.map((card) => (
               <PlayingCard
                 key={card.id}
                 card={card}
@@ -231,7 +236,7 @@ export function GameScreen({ view }: { view: RoomView }) {
                 }
               />
             ))}
-            {round.table.length === 0 && round.phase !== 'shuffling' && round.phase !== 'cutting' && <span className="muted">Tisch ist leer</span>}
+            {visibleTable.length === 0 && round.phase !== 'shuffling' && round.phase !== 'cutting' && <span className="muted">Tisch ist leer</span>}
           </div>
         </section>
 
