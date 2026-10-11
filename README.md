@@ -45,7 +45,9 @@ Möglichkeiten:
 - **Bot umschalten**: In der Lobby eines Dev-Raums kann jeder Testspieler auf „Bot spielt automatisch“ gestellt werden.
 - **Disconnect/Reconnect testen**: Tab neu laden (Wiederverbindung) oder Tab schließen und den Link erneut öffnen;
   nach 5 s ohne Verbindung erscheint „Verbindung verloren“. Der Timer läuft weiter, die Timeout-Automatik spielt.
-- **Timeout testen**: einfach nichts tun – nach 10 s spielt das System eine zufällige Handkarte.
+- **UI-Vorschau ohne Server**: `/dev/ui?scenario=myturn|capture|otherturn|mycut` zeigt den echten Spieltisch mit festen
+  Testsituationen (z. B. Kombinationsauswahl mit 9♥ und 9♣) – nur im Development-Build.
+- **Timeout testen**: einfach nichts tun – nach 30 s spielt das System eine zufällige Handkarte (Schneiden: automatisch nach 15 s).
 
 ## Projektstruktur
 

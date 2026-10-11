@@ -44,7 +44,7 @@ describe('Rundenablauf', () => {
     expect(state.round.phase).toBe('shuffling');
     state = skip(state, ctx);
     expect(state.round.phase).toBe('cutting');
-    expect(state.round.deadline! - ctx.now).toBe(7000);
+    expect(state.round.deadline! - ctx.now).toBe(15000); // Schneide-Timer 15 s
 
     // Nur Sitz 1 (rechts vom Dealer 0) darf schneiden
     expect(applyAction(state, { type: 'cut', seat: 2, index: 10 }, ctx).ok).toBe(false);

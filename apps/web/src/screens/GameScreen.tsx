@@ -12,10 +12,13 @@ import { CardBack, PlayingCard } from '../components/PlayingCard';
 import { RoundSummary } from '../components/RoundSummary';
 import { ScoreBar } from '../components/ScoreBar';
 import { SeatBadge } from '../components/SeatBadge';
-import { TimerBar } from '../components/TimerBar';
+import { CardLabel, CardList } from '../components/CardLabel';
+import { PhaseTimer } from '../components/TimerBar';
+import { captureSelectionState, toggleCaptureCard } from '../lib/captureSelection';
+import { timerDisplay } from '../lib/timerDisplay';
 import { useConfirm } from '../components/useConfirm';
-import { describeCards, lastCardLabel, playerAtSeat, seatDisplays, shortCard, showEmptyTableHint } from '../lib/display';
-import { api } from '../net/client';
+import { lastCardLabel, playerAtSeat, seatDisplays, showEmptyTableHint } from '../lib/display';
+import { api, serverNow } from '../net/client';
 
 export function GameScreen({ view }: { view: RoomView }) {
   const match = view.match!;
@@ -50,28 +53,29 @@ export function GameScreen({ view }: { view: RoomView }) {
   const selected = myHand.find((c) => c.id === selectedCard) ?? null;
   const preview = selected ? findCaptureOptions(selected, round.table) : null;
 
-  const captureOptionIds = new Set(myPending?.options?.flat() ?? []);
   const captureKey = (ids: readonly CardId[]) => [...ids].sort().join(',');
-  const selectionIsLegal = !!myPending?.options?.some((o) => captureKey(o) === captureKey(selectedCapture));
+  const capture = myPending?.options ? captureSelectionState(myPending.card, myPending.options, round.table, selectedCapture) : null;
+  const cardsOf = (ids: readonly CardId[]) => ids.map((id) => round.table.find((c) => c.id === id)).filter((c): c is Card => !!c);
 
   const nameOf = (seat: number) => playerAtSeat(view, seat)?.name ?? `Sitz ${seat + 1}`;
 
-  const timerTotal =
-    round.phase === 'cutting' ? match.timings.cutMs : round.phase === 'choosingDealOrder' ? match.timings.dealOrderMs : match.timings.turnMs;
-  const showTimer = ['cutting', 'choosingDealOrder', 'turn', 'choosingCapture'].includes(round.phase);
-  const timerLabel =
-    round.phase === 'cutting'
-      ? `${nameOf(round.cutterSeat)} schneidet`
-      : round.phase === 'choosingDealOrder'
-        ? `${round.cutterSeat === mySeat ? 'Du wählst' : `${nameOf(round.cutterSeat)} wählt`}`
-        : `${round.currentSeat === mySeat ? 'Du bist' : `${nameOf(round.currentSeat)} ist`} am Zug`;
+  // Timer: wer gerade handeln muss, sieht seinen eigenen Countdown groß und deutlich.
+  const timerInfo = timerDisplay(view, serverNow());
+  const myTurnTimer = !!timerInfo?.isMine && timerInfo.kind === 'turn';
 
   const lastMove = round.lastMove;
-  const moveText = lastMove
-    ? `${nameOf(lastMove.seat)} spielte ${shortCard(lastMove.card)}${
-        lastMove.captured.length > 0 ? ` und nahm ${describeCards(lastMove.captured)}` : ''
-      }${lastMove.byTimeout ? ' (Zeit abgelaufen)' : ''}`
-    : null;
+  const moveText = lastMove ? (
+    <>
+      {nameOf(lastMove.seat)} spielte <CardLabel card={lastMove.card} />
+      {lastMove.captured.length > 0 && (
+        <>
+          {' '}
+          und nahm <CardList cards={lastMove.captured} />
+        </>
+      )}
+      {lastMove.byTimeout ? ' (Zeit abgelaufen)' : ''}
+    </>
+  ) : null;
 
   const openMenu = () => {
     confirm({
@@ -165,9 +169,9 @@ export function GameScreen({ view }: { view: RoomView }) {
           ))}
 
         <section className="center">
-          <div className="center__timer">{showTimer && <TimerBar deadline={round.deadline} totalMs={timerTotal} label={timerLabel} />}</div>
+          <div className="center__timer">{timerInfo && !myTurnTimer && <PhaseTimer view={view} prominent={timerInfo.isMine} />}</div>
 
-          <div className="center__status" aria-live="polite">
+          <div className={`center__status ${myPending ? 'is-collapsed' : ''}`} aria-live="polite">
             {round.phase === 'shuffling' && <span>Karten werden gemischt …</span>}
             {round.phase === 'cutting' && !iCut && <span>{nameOf(round.cutterSeat)} schneidet das Deck …</span>}
             {round.phase === 'cutReveal' && round.cut && (
@@ -191,7 +195,7 @@ export function GameScreen({ view }: { view: RoomView }) {
             {(round.phase === 'moveAnimation' || round.phase === 'turn') && moveText && <span>{moveText}</span>}
           </div>
 
-          <div className="center__deck">
+          <div className={`center__deck ${myPending ? 'is-collapsed' : ''}`}>
             {round.phase === 'shuffling' ? (
               <ShuffleAnimation key={round.phaseStartedAt} phaseStartedAt={round.phaseStartedAt} durationMs={match.timings.shuffleMs} />
             ) : round.phase === 'cutReveal' && round.cut ? (
@@ -238,12 +242,65 @@ export function GameScreen({ view }: { view: RoomView }) {
 
           {round.phase === 'dealing' && round.initialMovedJacks.length > 0 && round.table.length > 0 && (
             <p className="muted small">
-              {round.initialMovedJacks.map(shortCard).join(', ')} beim Aufdecken unter das Deck gelegt.
+              <CardList cards={round.initialMovedJacks} separator="," /> beim Aufdecken unter das Deck gelegt.
             </p>
           )}
 
-          <div className="play-slot" data-anchor={anchors.slot}>
-            {round.phase === 'choosingCapture' && round.pending && (
+          {/* Eigene Auswahl: Panel direkt über den Tischkarten, die gespielte Karte steht im Titel (Flugziel). */}
+            {myPending?.options && capture && (
+              <div className="capture-choice" role="group" aria-label="Aufnahme wählen">
+                <p className="capture-choice__title">
+                  <span data-anchor={anchors.slot}>
+                    <CardLabel card={myPending.card} />
+                  </span>{' '}
+                  gespielt – wähle deine Aufnahme:
+                </p>
+                <div className="capture-options">
+                  {myPending.options.map((opt) => {
+                    const active = captureKey(opt) === captureKey(selectedCapture);
+                    return (
+                      <button
+                        key={opt.join()}
+                        type="button"
+                        className={`capture-option ${active ? 'is-active' : ''}`}
+                        aria-pressed={active}
+                        onClick={() => setSelectedCapture(active ? [] : opt)}
+                      >
+                        <CardList cards={cardsOf(opt)} />
+                        {capture.isSum && <span className="capture-option__sum">= {capture.target}</span>}
+                        {active && <span className="capture-option__check" aria-hidden="true">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className={`capture-choice__status ${capture.match ? 'is-valid' : ''}`} aria-live="polite">
+                  {capture.match ? (
+                    <>
+                      ✓ Gültig: <CardLabel card={myPending.card} /> + <CardList cards={cardsOf(capture.match)} />
+                      {capture.isSum && <> = {capture.target}</>}
+                    </>
+                  ) : selectedCapture.length > 0 && capture.isSum ? (
+                    <>
+                      Summe {capture.sum} – noch {capture.target - capture.sum} bis {capture.target}
+                    </>
+                  ) : (
+                    'Kombination antippen oder markierte Tischkarten wählen'
+                  )}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn--primary btn--block btn--lg"
+                  disabled={!capture.match}
+                  onClick={() => capture.match && void call(() => api.gameAction({ type: 'chooseCapture', cardIds: capture.match! }))}
+                >
+                  Nehmen
+                </button>
+              </div>
+            )}
+
+
+          <div className={`play-slot ${myPending ? 'is-collapsed' : ''}`} data-anchor={myPending ? undefined : anchors.slot}>
+            {round.phase === 'choosingCapture' && round.pending && !myPending && (
               <PlayingCard card={round.pending.card} className={shown(vis.slotAppearAt) ? '' : 'is-hidden'} />
             )}
           </div>
@@ -259,12 +316,12 @@ export function GameScreen({ view }: { view: RoomView }) {
                   vis.lifted.includes(card.id) ? 'card--lifting' : '',
                 ].join(' ')}
                 style={vis.lifted.includes(card.id) ? liftDelay : undefined}
-                highlighted={myPending ? captureOptionIds.has(card.id) : preview?.some((o) => o.includes(card.id))}
+                highlighted={capture ? capture.legalIds.has(card.id) : preview?.some((o) => o.includes(card.id))}
                 selected={selectedCapture.includes(card.id)}
-                dimmed={!!myPending && !captureOptionIds.has(card.id)}
+                dimmed={!!capture && !capture.legalIds.has(card.id)}
                 onClick={
-                  myPending && captureOptionIds.has(card.id)
-                    ? () => setSelectedCapture((sel) => (sel.includes(card.id) ? sel.filter((id) => id !== card.id) : [...sel, card.id]))
+                  capture && capture.legalIds.has(card.id)
+                    ? () => setSelectedCapture((sel) => toggleCaptureCard(myPending!.options!, sel, card.id))
                     : undefined
                 }
               />
@@ -277,38 +334,14 @@ export function GameScreen({ view }: { view: RoomView }) {
           <section data-anchor={anchors.seat(mySeat)} className={`me ${isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, mySeat) ? 'is-active' : ''}`}>
             {mySeatDisplay && <SeatBadge display={mySeatDisplay} handCount={myHand.length} chipVisible={shown(vis.chipAppearAt)} isActive={false} />}
 
-            {myPending?.options && (
-              <div className="capture-choice">
-                <p>Wähle deine Aufnahme:</p>
-                <div className="row row--wrap">
-                  {myPending.options.map((opt) => (
-                    <button
-                      key={opt.join()}
-                      type="button"
-                      className={`chip ${captureKey(opt) === captureKey(selectedCapture) ? 'is-active' : ''}`}
-                      onClick={() => setSelectedCapture(opt)}
-                    >
-                      {describeCards(opt.map((id) => round.table.find((c) => c.id === id)).filter((c): c is Card => !!c))}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn--primary btn--block"
-                  disabled={!selectionIsLegal}
-                  onClick={() => void call(() => api.gameAction({ type: 'chooseCapture', cardIds: selectedCapture }))}
-                >
-                  Nehmen
-                </button>
-              </div>
-            )}
+            {myTurnTimer && <PhaseTimer view={view} prominent />}
 
-            <div className={`hand ${shown(vis.handAppearAt[mySeat]) ? '' : 'is-hidden'}`} aria-label="Deine Handkarten">
+            <div className={`hand ${shown(vis.handAppearAt[mySeat]) ? '' : 'is-hidden'} ${myPending ? 'hand--waiting' : ''}`} aria-label="Deine Handkarten">
               {myHand.map((card) => (
                 <PlayingCard
                   key={card.id}
                   card={card}
-                  size="lg"
+                  size={myPending ? 'md' : 'lg'}
                   selected={card.id === selectedCard}
                   onClick={isMyTurn ? () => setSelectedCard((id) => (id === card.id ? null : card.id)) : undefined}
                 />
@@ -323,7 +356,7 @@ export function GameScreen({ view }: { view: RoomView }) {
                     : preview && preview.length > 1
                       ? 'Mehrere Aufnahmen möglich – nach dem Spielen wählen'
                       : preview && preview.length === 1
-                        ? `Nimmt automatisch ${describeCards(preview[0]!.map((id) => round.table.find((c) => c.id === id)!).filter(Boolean))}`
+                        ? <>Nimmt automatisch <CardList cards={cardsOf(preview[0]!)} /></>
                         : 'Keine Aufnahme – Karte bleibt am Tisch'}
                 </span>
                 <button

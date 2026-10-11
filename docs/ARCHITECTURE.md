@@ -31,10 +31,10 @@ Browser (React)  ──Socket.IO──►  Node-Server (autoritativ)  ──► 
 ### Engine-Phasen einer Runde
 
 ```
-shuffling ─(Zeit)─► cutting ─(Schnitt / 7 s Auto)─► cutReveal ─(Animation)─► choosingDealOrder ─(Wahl / 7 s Zufall)─► dealing ─(Zeit)─► turn
+shuffling ─(Zeit)─► cutting ─(Schnitt / 15 s Auto)─► cutReveal ─(Animation)─► choosingDealOrder ─(Wahl / 7 s Zufall)─► dealing ─(Zeit)─► turn
 turn ─(Karte, 0–1 Option)──────────────► moveAnimation ─(Zeit)─► turn (nächster Sitz rechts)
 turn ─(Karte, ≥2 Optionen)─► choosingCapture ─(Nehmen / Timeout→beste)─► moveAnimation
-turn ─(10 s Timeout: zufällige Handkarte → beste Aufnahme)─► moveAnimation
+turn ─(30 s Timeout: zufällige Handkarte → beste Aufnahme)─► moveAnimation
 moveAnimation, alle Hände leer: Deck übrig → dealing (neue 4er-Pakete) · Deck leer → roundSummary
 roundSummary ─(Zeit)─► neue Runde (Dealer +1, neu gemischt)   bzw. Match beendet (keine Deadline)
 ```
@@ -93,3 +93,12 @@ Animationen sind **reine Darstellung** des bereits bestätigten Serverzustands.
 - AN/STUMM: `soundSettings`, lokal pro Browser (`localStorage`).
 - Platzhalter-Sounds werden synthetisch erzeugt. **Austauschen:** Datei nach `apps/web/public/sounds/` legen und in
   `SOUND_FILES` (`sound/sounds.ts`) eintragen.
+
+## Timer-Anzeige & Kombinationsauswahl (apps/web/src/lib)
+
+- `timerDisplay` (rein, getestet): Wer handeln muss, sieht einen großen, hervorgehobenen Balken
+  („Dein Zug · 24 s“, „Du schneidest · 12 s“); alle anderen sehen den Countdown des aktiven Spielers in der Tischmitte.
+  Warnton einmalig 5 s vor Ablauf (Zug, Schneiden) bzw. 3 s (Wahl Spieler/Tisch zuerst).
+- `captureSelection` (rein, getestet): legale Karten hervorheben, andere abdunkeln, Teilsumme anzeigen,
+  „Nehmen“ erst bei exakt einer legalen Kombination. Die Optionen selbst kommen vom Server.
+- `CardLabel`/`CardList`: Karten in Texten als kleine Karten mit hellem Grund – ♥/♦ rot, ♣/♠ schwarz.

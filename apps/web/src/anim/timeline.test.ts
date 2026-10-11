@@ -184,14 +184,29 @@ describe('Timer-Warnton', () => {
   const state = createMatch({ playerCount: 2, firstDealerSeat: 0 }, ctx).state;
   state.round.phase = 'turn';
   state.round.currentSeat = 1;
-  state.round.deadline = 10_000;
+  state.round.deadline = state.timings.turnMs; // 30 s
 
-  it('nur für den Spieler am Zug, 3 s vor Ablauf', () => {
-    expect(timerWarningDelay(roomView(state, 1), 0)).toEqual({ key: expect.any(String), delayMs: 7000 });
-    expect(timerWarningDelay(roomView(state, 1), 8000)!.delayMs).toBe(0);
+  it('Zug (30 s): nur für den Spieler am Zug, einmal 5 s vor Ablauf – nicht vorher', () => {
+    expect(state.timings.turnMs).toBe(30_000);
+    expect(timerWarningDelay(roomView(state, 1), 0)).toEqual({ key: expect.any(String), delayMs: 25_000 });
+    expect(timerWarningDelay(roomView(state, 1), 20_000)!.delayMs).toBe(5_000);
+    expect(timerWarningDelay(roomView(state, 1), 26_000)!.delayMs).toBe(0);
     expect(timerWarningDelay(roomView(state, 0), 0)).toBeNull();
     expect(timerWarningDelay(roomView(state, null), 0)).toBeNull();
-    expect(timerWarningDelay(roomView(state, 1), 10_001)).toBeNull();
+    expect(timerWarningDelay(roomView(state, 1), 30_001)).toBeNull();
+  });
+
+  it('Schneiden (15 s): Warnung 5 s vor Ablauf; Wahl Spieler/Tisch (7 s): 3 s vor Ablauf', () => {
+    const cutting = structuredClone(state);
+    cutting.round.phase = 'cutting';
+    cutting.round.deadline = cutting.timings.cutMs;
+    expect(cutting.timings.cutMs).toBe(15_000);
+    expect(timerWarningDelay(roomView(cutting, 1), 0)!.delayMs).toBe(10_000); // Sitz 1 schneidet (rechts vom Dealer 0)
+    expect(timerWarningDelay(roomView(cutting, 0), 0)).toBeNull();
+    const choosing = structuredClone(cutting);
+    choosing.round.phase = 'choosingDealOrder';
+    choosing.round.deadline = choosing.timings.dealOrderMs;
+    expect(timerWarningDelay(roomView(choosing, 1), 0)!.delayMs).toBe(4_000);
   });
 
   it('Kombinationsauswahl teilt die Warnung des Zuges (kein doppelter Ton)', () => {

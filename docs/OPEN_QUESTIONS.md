@@ -4,6 +4,8 @@
 
 | Thema | Regel | Tests |
 | --- | --- | --- |
+| Schneide-Timer | Der Spieler rechts vom Dealer hat **15 s**, um die Schnittstelle zu wählen und zu bestätigen (für alle sichtbar). Danach schneidet das System an einer zufälligen gültigen Stelle. | `rules.test.ts`, `match.test.ts`, `room.test.ts` |
+| Zugtimer | Jeder Zug hat **30 s** – für Handkarte und ggf. Kombinationsauswahl zusammen. Ohne bestätigte Karte: zufällige Handkarte; mit bestätigter Karte: beste Kombination. | `rules.test.ts` |
 | Tisch zuerst / Spieler zuerst | Nach dem Schneiden hat der Spieler rechts vom Dealer **7 s** (serverseitig, für alle sichtbar). Ohne Wahl entscheidet der Server **rein zufällig** zwischen beiden Optionen (eine Zufallswahl aus 2, unabhängig von den Karten). | `rules.test.ts`, `room.test.ts` |
 | Host verlässt den Raum | Nur bewusstes „Raum verlassen“ (mit Sicherheitsabfrage) schließt den Raum für alle; alle anderen werden informiert und landen auf der Startansicht. Disconnect, Hintergrund oder Reload sind **kein** Verlassen – Reconnect funktioniert weiter. | `room.test.ts` |
 | Host entfernt Spieler (Lobby) | Spieler wird entfernt, Platz wird frei, Raum bleibt. | `room.test.ts` |
@@ -11,7 +13,7 @@
 | Nicht-Host verlässt bewusst (Match) | Sicherheitsabfrage; danach wird das Match sofort abgebrochen, Punkte verworfen, Raum bleibt, alle Verbleibenden kehren in die Lobby zurück, der Platz wird frei, alle müssen erneut „Bereit“ wählen, neues Match startet bei 0. Reload, kurzer Disconnect, App im Hintergrund und Netzwerkunterbrechung lösen das **nicht** aus. | `room.test.ts`, `socket.test.ts` |
 | Genau eine Aufnahme | Wird sofort automatisch ausgeführt (Zahlenkarte, Dame, König). Keine Auswahl, kein Liegenlassen. | `rules.test.ts` |
 | Mehrere Aufnahmen | Gespielte Karte ist verbindlich; Spieler wählt eine legale Kombination und bestätigt mit „Nehmen“. Gilt nie für den Buben. | `rules.test.ts` |
-| Timer während der Auswahl | Der 10-s-Zugtimer läuft weiter. Bei Ablauf bleibt die gespielte Karte; der Server wählt die beste Kombination (♣2/♦10 → Kreuz → Anzahl → Tischreihenfolge). Keine neue Zufallskarte. | `rules.test.ts` |
+| Timer während der Auswahl | Der 30-s-Zugtimer läuft weiter. Bei Ablauf bleibt die gespielte Karte; der Server wählt die beste Kombination (♣2/♦10 → Kreuz → Anzahl → Tischreihenfolge). Keine neue Zufallskarte. | `rules.test.ts` |
 | Timeout vor „Spielen“ | Rein zufällige Handkarte; danach: nichts / einzige Aufnahme / beste Aufnahme / Buben-Regel. | `rules.test.ts` |
 | Bube | Nimmt automatisch alle Zahlenkarten und alle liegenden Buben, nie Damen/Könige; ohne Aufnehmbares bleibt er liegen. Keine manuelle Auswahl. | `rules.test.ts`, `capture.test.ts` |
 

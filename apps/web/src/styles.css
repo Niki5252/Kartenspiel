@@ -238,8 +238,13 @@ button { font: inherit; color: inherit; }
 .card--clickable { cursor: pointer; }
 .card--clickable:hover { transform: translateY(-4px); }
 .card--selected { transform: translateY(-14px) !important; box-shadow: 0 0 0 3px var(--accent), 0 10px 20px rgba(0, 0, 0, 0.4); }
+.table-cards .card--selected::after {
+  content: '✓'; position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--accent); color: #2a1f00; font: 800 0.8rem/1 Inter, system-ui, sans-serif;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
 .card--highlighted { box-shadow: 0 0 0 2px var(--primary), 0 0 14px rgba(63, 176, 143, 0.6); }
-.card--dimmed { opacity: 0.45; }
+.card--dimmed { opacity: 0.32; filter: grayscale(0.4); }
 
 /* ---------------------------------------------------------------- Spielansicht */
 .game {
@@ -346,6 +351,8 @@ button { font: inherit; color: inherit; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   border-radius: 24px; background: rgba(0, 0, 0, 0.12);
   padding: 10px; overflow: auto;
+  /* nie oben abschneiden, wenn der Platz knapp ist */
+  justify-content: safe center;
 }
 .center__timer { width: min(100%, 420px); min-height: 22px; }
 .center__status { min-height: 1.3em; text-align: center; font-size: 0.92rem; color: var(--muted); }
@@ -386,7 +393,7 @@ button { font: inherit; color: inherit; }
 .timer--idle { background: transparent; }
 
 
-.cut-picker, .deal-choice, .capture-choice {
+.cut-picker, .deal-choice {
   width: min(100%, 420px); display: flex; flex-direction: column; gap: 10px; align-items: stretch; text-align: center;
   background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border); border-radius: 14px; padding: 12px;
 }
@@ -545,4 +552,83 @@ button { font: inherit; color: inherit; }
   .fly-layer { display: none; }
   .shuffle__card, .cut-anim__top, .cut-anim__reveal, .card--lifting, .card--settle, .dealer-chip { animation: none !important; }
   .cut-anim__reveal { opacity: 1; transform: translateY(58%); }
+}
+
+/* ================================================================ Timer: eigener Zug deutlich hervorgehoben */
+.timer--mine {
+  height: 38px; width: min(100%, 460px); margin: 0 auto;
+  border: 2px solid hsl(var(--timer-hue) 70% 55%);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35), 0 0 18px hsl(var(--timer-hue) 70% 45% / 0.55);
+  position: relative; z-index: 45;
+}
+.timer--mine .timer__label { font-size: 1.05rem; letter-spacing: 0.01em; }
+.timer--urgent { animation: timer-pulse 1s ease-in-out infinite; }
+@keyframes timer-pulse { 50% { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35), 0 0 28px hsl(var(--timer-hue) 80% 50% / 0.9); } }
+.me > .timer--mine { align-self: stretch; }
+
+/* ================================================================ Mini-Karten (farbige Symbole in Texten) */
+.mini-card {
+  display: inline-flex; align-items: baseline; gap: 1px;
+  padding: 1px 6px; border-radius: 6px; line-height: 1.35;
+  background: var(--card-face); border: 1px solid rgba(0, 0, 0, 0.2);
+  font: 700 0.95em/1.35 Georgia, 'Times New Roman', serif; white-space: nowrap; vertical-align: baseline;
+}
+.mini-card--red { color: var(--card-red); }
+.mini-card--black { color: var(--card-black); }
+.mini-card__suit { font-size: 1.1em; }
+.card-list { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.card-list__item { display: inline-flex; align-items: center; gap: 4px; }
+.card-list__sep { color: var(--muted); font-weight: 600; }
+
+/* ================================================================ Kombinationsauswahl */
+.capture-choice {
+  width: min(100%, 640px); display: flex; flex-direction: column; gap: 10px; align-items: stretch;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(226, 193, 105, 0.45); border-radius: 14px; padding: 12px;
+}
+.capture-choice__title { text-align: center; line-height: 1.6; }
+.capture-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
+.capture-option {
+  position: relative; min-height: 54px; padding: 8px 12px;
+  display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
+  border-radius: 12px; border: 2px solid var(--border); background: var(--surface-2); cursor: pointer;
+  font-size: 1.05rem; transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.capture-option:active { transform: scale(0.98); }
+.capture-option.is-active { border-color: var(--accent); background: rgba(226, 193, 105, 0.2); }
+.capture-option__sum { color: var(--muted); font-weight: 600; }
+.capture-option__check {
+  position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--accent); color: #2a1f00; font-weight: 800; font-size: 0.8rem;
+}
+.capture-choice__status { text-align: center; color: var(--muted); min-height: 1.6em; line-height: 1.6; }
+.capture-choice__status.is-valid { color: #8fe0c4; font-weight: 600; }
+@media (max-width: 420px) {
+  .capture-options { grid-template-columns: 1fr 1fr; }
+  .capture-option { font-size: 1rem; padding: 8px; }
+}
+
+/* Kleine Smartphones: Auswahl kompakt, Tisch bleibt sichtbar, Touch-Ziele bleiben groß */
+@media (max-width: 420px), (max-height: 760px) {
+  .capture-choice { padding: 8px; gap: 6px; }
+  .capture-choice__title { font-size: 0.88rem; line-height: 1.45; }
+  .capture-options { gap: 6px; }
+  .capture-option { min-height: 46px; }
+  .capture-choice__status { font-size: 0.85rem; min-height: 1.4em; line-height: 1.45; }
+  .capture-choice .btn--lg { padding: 10px 16px; min-height: 46px; }
+  .me { gap: 6px; }
+  .me .hand { padding-top: 4px; }
+}
+
+/* Während der eigenen Kombinationsauswahl: nur Auswahl + Tisch in der Mitte */
+.center .is-collapsed { display: none; }
+.center > .capture-choice { flex: none; }
+
+@media (max-width: 420px) {
+  .table-cards { gap: 4px; }
+  .center { padding: 8px 6px; gap: 8px; }
+}
+
+/* Sehr niedrige Bildschirme: während der Auswahl Handkarten ausblenden (gerade nicht spielbar) */
+@media (max-height: 680px) {
+  .hand--waiting { display: none; }
 }

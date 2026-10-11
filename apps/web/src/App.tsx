@@ -8,10 +8,19 @@ import { useGameSounds } from './sound/useGameSounds';
 
 // Dev-Werkzeuge werden im Produktions-Build komplett entfernt (import.meta.env.DEV ist dort false).
 const DevLauncher = import.meta.env.DEV ? lazy(() => import('./dev/DevLauncher').then((m) => ({ default: m.DevLauncher }))) : null;
+const UiPreview = import.meta.env.DEV ? lazy(() => import('./dev/UiPreview').then((m) => ({ default: m.UiPreview }))) : null;
 
 export function App() {
   const state = useClientState();
   useGameSounds(state);
+
+  if (UiPreview && window.location.pathname === '/dev/ui') {
+    return (
+      <Suspense fallback={null}>
+        <UiPreview />
+      </Suspense>
+    );
+  }
 
   if (DevLauncher && window.location.pathname === '/dev') {
     return (

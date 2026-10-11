@@ -370,7 +370,7 @@ describe('Timer starten erst nach der relevanten Animation', () => {
     expect(next.round.phase).toBe('turn');
     expect(next.round.currentSeat).toBe(0);
     expect(next.round.phaseStartedAt).toBe(moved.round.deadline);
-    expect(next.round.deadline).toBe(moved.round.deadline! + next.timings.turnMs); // volle 10 s
+    expect(next.round.deadline).toBe(moved.round.deadline! + next.timings.turnMs); // volle 30 s
   });
 
   it('erster Zug startet erst nach der Austeil-Animation', () => {
@@ -403,5 +403,64 @@ describe('Timer starten erst nach der relevanten Animation', () => {
     expect(pending.round.deadline).toBe(state.round.deadline);
     const taken = ok(applyAction(pending, { type: 'chooseCapture', seat: 1, cardIds: ['S9'] }, { ...ctx, now: ctx.now + 5000 }));
     expect(taken.round.lastMove!.viaChoice).toBe(true);
+  });
+});
+
+describe('Neue Zeiten: Schneiden 15 s, Zug 30 s', () => {
+  it('Standardwerte', () => {
+    const { state } = createMatch({ playerCount: 2, firstDealerSeat: 0 }, { now: 0, rng: createSeededRng(1) });
+    expect(state.timings.cutMs).toBe(15_000);
+    expect(state.timings.turnMs).toBe(30_000);
+    expect(state.timings.dealOrderMs).toBe(7_000); // unverändert
+  });
+
+  it('Schneide-Timer 15 s: automatischer Schnitt erst nach Ablauf', () => {
+    const ctx: EngineContext = { now: 0, rng: createSeededRng(4) };
+    let { state } = createMatch({ playerCount: 3, firstDealerSeat: 0 }, ctx);
+    ctx.now = state.round.deadline!;
+    state = advanceTime(state, ctx).state;
+    expect(state.round.phase).toBe('cutting');
+    const start = ctx.now;
+    expect(state.round.deadline).toBe(start + 15_000);
+    const before = advanceTime(state, { ...ctx, now: start + 14_999 });
+    expect(before.changed).toBe(false);
+    expect(before.state.round.cut).toBeNull();
+    // manuelles Schneiden ist bis zuletzt möglich
+    expect(applyAction(state, { type: 'cut', seat: 1, index: 7 }, { ...ctx, now: start + 14_999 }).ok).toBe(true);
+    const after = advanceTime(state, { ...ctx, now: start + 15_000 }).state;
+    expect(after.round.cut?.auto).toBe(true);
+    expect(after.round.phase).toBe('cutReveal');
+  });
+
+  it('Zugtimer 30 s: zufällige Handkarte erst nach Ablauf', () => {
+    const { state, ctx } = turnState(['C3', 'H2 S5'], 'S9 HK');
+    expect(state.round.deadline! - ctx.now).toBe(30_000);
+    const before = advanceTime(state, { now: ctx.now + 29_999, rng: forbiddenRng });
+    expect(before.changed).toBe(false);
+    expect(before.state.round.phase).toBe('turn');
+    const after = advanceTime(state, { now: ctx.now + 30_000, rng: scriptedRng([1]) }).state;
+    expect(after.round.lastMove).toMatchObject({ byTimeout: true, card: { id: 'S5' } });
+  });
+
+  it('Timeout nach bestätigter Karte erst nach Ablauf der 30 s (gleiche Deadline), dann beste Kombination', () => {
+    const { state, ctx } = turnState(['C3', 'H2 S5'], 'S9 C6 D3');
+    const pending = ok(applyAction(state, { type: 'playCard', seat: 1, cardId: 'H2' }, { ...ctx, now: ctx.now + 20_000 }));
+    expect(pending.round.phase).toBe('choosingCapture');
+    expect(pending.round.deadline).toBe(ctx.now + 30_000); // keine neue Zeit, der Zugtimer läuft weiter
+    const before = advanceTime(pending, { now: ctx.now + 29_999, rng: forbiddenRng });
+    expect(before.changed).toBe(false);
+    expect(before.state.round.phase).toBe('choosingCapture');
+    const after = advanceTime(pending, { now: ctx.now + 30_000, rng: forbiddenRng }).state;
+    expect(after.round.lastMove).toMatchObject({ byTimeout: true, card: { id: 'H2' } });
+    expect(ids(after.round.lastMove!.captured)).toEqual(['D3', 'C6']); // mehr Kreuz
+  });
+
+  it('weiterhin: genau eine Möglichkeit sofort automatisch, Bube ohne Auswahl', () => {
+    const one = turnState(['C3', 'H2'], 'S9 HK');
+    expect(ok(applyAction(one.state, { type: 'playCard', seat: 1, cardId: 'H2' }, one.ctx)).round.phase).toBe('moveAnimation');
+    const jack = turnState(['C3', 'HJ'], 'S2 S3 D4 CJ HQ');
+    const j = ok(applyAction(jack.state, { type: 'playCard', seat: 1, cardId: 'HJ' }, jack.ctx));
+    expect(j.round.phase).toBe('moveAnimation');
+    expect(j.round.pending).toBeNull();
   });
 });

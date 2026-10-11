@@ -1,5 +1,6 @@
 import type { RoomView } from '@orlan/protocol';
-import { sideLabel, shortCard } from '../lib/display';
+import { sideLabel } from '../lib/display';
+import { CardList } from './CardLabel';
 import { useServerNow } from '../net/hooks';
 
 interface Props {
@@ -82,7 +83,7 @@ export function RoundSummary({ view, onReturnToLobby }: Props) {
           {score.mostClubsSide === null && <li>Kreuzmehrheit: Gleichstand – keine Punkte.</li>}
           {result.leftoverSide && result.leftoverCards.length > 0 && (
             <li>
-              Restkarten ({result.leftoverCards.map(shortCard).join(' ')}) an {sideLabel(view, result.leftoverSide)}.
+              Restkarten <CardList cards={result.leftoverCards} separator=" " /> an {sideLabel(view, result.leftoverSide)}.
             </li>
           )}
         </ul>

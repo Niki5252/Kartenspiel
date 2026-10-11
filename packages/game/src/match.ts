@@ -29,7 +29,7 @@ export const TABLE_SIZE = 4;
 export interface MatchTimings {
   /** Sichtbare Mischanimation. */
   shuffleMs: number;
-  /** Zeit zum Schneiden (Regel: 7 Sekunden). */
+  /** Zeit zum Auswählen und Bestätigen des Schnitts (Regel: 15 Sekunden). */
   cutMs: number;
   /** Sichtbare Schnitt-Animation (Stapel teilen, Karte zeigen, unterlegen) – reine Darstellung. */
   cutRevealMs: number;
@@ -37,7 +37,7 @@ export interface MatchTimings {
   dealOrderMs: number;
   /** Sichtbare Austeilanimation. */
   dealMs: number;
-  /** Zugzeit (Regel: 10 Sekunden). */
+  /** Zugzeit inkl. ggf. Kombinationsauswahl (Regel: 30 Sekunden). */
   turnMs: number;
   /** Zuganimation, bevor der nächste Timer startet (Regel: ca. 1–1,5 s). */
   moveAnimationMs: number;
@@ -47,11 +47,11 @@ export interface MatchTimings {
 
 export const DEFAULT_TIMINGS: MatchTimings = {
   shuffleMs: 1800,
-  cutMs: 7000,
+  cutMs: 15000,
   cutRevealMs: 1700,
   dealOrderMs: 7000,
   dealMs: 1800,
-  turnMs: 10000,
+  turnMs: 30000,
   moveAnimationMs: 1300,
   roundSummaryMs: 12000,
 };
@@ -337,7 +337,7 @@ function onDeadline(state: MatchState, ctx: EngineContext, events: MatchEvent[])
       setPhase(round, 'cutting', ctx.now, ctx.now + state.timings.cutMs);
       break;
     case 'cutting':
-      // Keine Bestätigung innerhalb von 7 s -> zufällige gültige Schnittstelle.
+      // Keine Bestätigung innerhalb von 15 s -> zufällige gültige Schnittstelle.
       performCut(state, randomCutIndex(round.deck.length, ctx.rng), true, ctx, events);
       break;
     case 'dealing':

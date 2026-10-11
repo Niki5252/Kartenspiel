@@ -189,7 +189,7 @@ describe('Room – Verbindung', () => {
     const b = room.addPlayer('B');
     room.setReady(a.id, true);
     room.setReady(b.id, true);
-    clock.advance(3000 + 1800 + 7000 + 1700); // Countdown + Mischen + Auto-Schnitt + Schnitt-Animation
+    clock.advance(3000 + 1800 + 15000 + 1700); // Countdown + Mischen + Auto-Schnitt (15 s) + Schnitt-Animation
     room.gameAction(b.id, { type: 'chooseDealOrder', order: 'playersFirst' });
     const json = JSON.stringify(room.viewFor(a.id));
     expect(json).not.toContain(room.getPlayer(b.id)!.token);
@@ -314,7 +314,7 @@ describe('Tisch/Spieler-Wahl über den Raum', () => {
   it('nach 7 s ohne Wahl entscheidet der Server, eine spätere Wahl wird abgelehnt', () => {
     const { room, clock, host, guest } = startTwoPlayerMatch();
     const cutter = room.seats![(room.match!.round.dealerSeat + 1) % 2]!;
-    clock.advance(1800 + 7000 + 1700); // Mischen + Schneide-Timeout (Auto-Schnitt) + Schnitt-Animation
+    clock.advance(1800 + 15000 + 1700); // Mischen + Schneide-Timeout 15 s (Auto-Schnitt) + Schnitt-Animation
     expect(room.match!.round.phase).toBe('choosingDealOrder');
     clock.advance(7000);
     expect(room.match!.round.dealOrderAuto).toBe(true);
@@ -466,7 +466,7 @@ describe('Reconnect während einer Animation', () => {
       room.markOnline(p.id);
       room.setReady(p.id, true);
     }
-    clock.advance(3000 + 1800 + 7000 + 1700 + 7000 + 1800); // bis zum ersten Zug (alles automatisch)
+    clock.advance(3000 + 1800 + 15000 + 1700 + 7000 + 1800); // bis zum ersten Zug (alles automatisch)
     expect(room.match!.round.phase).toBe('turn');
     const current = room.seats![room.match!.round.currentSeat]!;
     const other = current === a.id ? b.id : a.id;
