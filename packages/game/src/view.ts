@@ -38,6 +38,8 @@ export interface RoundView {
   currentSeat: SeatIndex;
   cut: CutInfo | null;
   dealOrder: DealOrder | null;
+  dealOrderAuto: boolean;
+  dealsDone: number;
   initialMovedJacks: Card[];
   pending: PendingCaptureView | null;
   lastMove: MoveRecord | null;
@@ -89,6 +91,8 @@ export function projectMatchView(state: MatchState, viewerSeat: SeatIndex | null
       currentSeat: r.currentSeat,
       cut: r.cut,
       dealOrder: r.dealOrder,
+      dealOrderAuto: r.dealOrderAuto,
+      dealsDone: r.dealsDone,
       initialMovedJacks: r.initialMovedJacks,
       pending,
       lastMove: r.lastMove,

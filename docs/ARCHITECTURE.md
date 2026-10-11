@@ -31,7 +31,7 @@ Browser (React)  ──Socket.IO──►  Node-Server (autoritativ)  ──► 
 ### Engine-Phasen einer Runde
 
 ```
-shuffling ─(Zeit)─► cutting ─(Schnitt / 7 s Auto)─► choosingDealOrder ─(Wahl)─► dealing ─(Zeit)─► turn
+shuffling ─(Zeit)─► cutting ─(Schnitt / 7 s Auto)─► choosingDealOrder ─(Wahl / 7 s Zufall)─► dealing ─(Zeit)─► turn
 turn ─(Karte, 0–1 Option)──────────────► moveAnimation ─(Zeit)─► turn (nächster Sitz rechts)
 turn ─(Karte, ≥2 Optionen)─► choosingCapture ─(Nehmen / Timeout→beste)─► moveAnimation
 turn ─(10 s Timeout: zufällige Handkarte → beste Aufnahme)─► moveAnimation

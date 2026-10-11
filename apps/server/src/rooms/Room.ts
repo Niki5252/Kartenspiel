@@ -153,7 +153,7 @@ export class Room {
   leave(playerId: PlayerId): void {
     if (!this.getPlayer(playerId)) return;
     if (playerId === this.hostId) {
-      this.close('Der Host hat den Raum verlassen.');
+      this.close('Der Host hat den Raum verlassen. Der Raum wurde für alle geschlossen.');
       return;
     }
     this.removePlayer(playerId, 'Du hast den Raum verlassen.', `${this.getPlayer(playerId)?.name} hat den Raum verlassen.`);

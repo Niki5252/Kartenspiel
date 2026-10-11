@@ -31,6 +31,8 @@ export interface MatchTimings {
   shuffleMs: number;
   /** Zeit zum Schneiden (Regel: 7 Sekunden). */
   cutMs: number;
+  /** Zeit für die Wahl "Spieler zuerst / Tisch zuerst" (Regel: 7 Sekunden). */
+  dealOrderMs: number;
   /** Sichtbare Austeilanimation. */
   dealMs: number;
   /** Zugzeit (Regel: 10 Sekunden). */
@@ -44,6 +46,7 @@ export interface MatchTimings {
 export const DEFAULT_TIMINGS: MatchTimings = {
   shuffleMs: 1800,
   cutMs: 7000,
+  dealOrderMs: 7000,
   dealMs: 1200,
   turnMs: 10000,
   moveAnimationMs: 1300,
@@ -61,6 +64,8 @@ export type RoundPhase =
   | 'choosingCapture'
   | 'moveAnimation'
   | 'roundSummary';
+
+export const DEAL_ORDERS: readonly DealOrder[] = ['playersFirst', 'tableFirst'];
 
 export interface CutInfo {
   index: number;
@@ -107,6 +112,8 @@ export interface RoundState {
   currentSeat: SeatIndex;
   cut: CutInfo | null;
   dealOrder: DealOrder | null;
+  /** true, wenn die Austeilreihenfolge nach Ablauf der 7 s zufällig gewählt wurde. */
+  dealOrderAuto: boolean;
   initialMovedJacks: Card[];
   dealsDone: number;
   pending: PendingCapture | null;
@@ -139,7 +146,7 @@ export type MatchAction =
 export type MatchEvent =
   | { type: 'roundStarted'; roundNumber: number; dealerSeat: SeatIndex }
   | { type: 'deckCut'; seat: SeatIndex; cut: CutInfo }
-  | { type: 'dealOrderChosen'; seat: SeatIndex; order: DealOrder }
+  | { type: 'dealOrderChosen'; seat: SeatIndex; order: DealOrder; auto: boolean }
   | { type: 'cardsDealt'; initial: boolean; movedJacks: Card[] }
   | { type: 'captureChoiceRequired'; seat: SeatIndex }
   | { type: 'cardPlayed'; move: MoveRecord }
@@ -210,6 +217,7 @@ function newRound(
     currentSeat: firstPlayerSeat(dealerSeat, playerCount),
     cut: null,
     dealOrder: null,
+    dealOrderAuto: false,
     initialMovedJacks: [],
     dealsDone: 0,
     pending: null,
@@ -255,9 +263,7 @@ export function applyAction(state: MatchState, action: MatchAction, ctx: EngineC
       if (round.phase !== 'choosingDealOrder') return fail('Die Austeilreihenfolge wird jetzt nicht gewählt.');
       if (action.seat !== cutterSeat(next)) return fail('Nur der Spieler rechts vom Dealer darf wählen.');
       if (action.order !== 'playersFirst' && action.order !== 'tableFirst') return fail('Ungültige Auswahl.');
-      round.dealOrder = action.order;
-      events.push({ type: 'dealOrderChosen', seat: action.seat, order: action.order });
-      performDeal(next, true, ctx, events);
+      chooseDealOrder(next, action.order, false, ctx, events);
       break;
     }
     case 'playCard': {
@@ -354,8 +360,8 @@ function onDeadline(state: MatchState, ctx: EngineContext, events: MatchEvent[])
       startNextRound(state, ctx, events);
       break;
     case 'choosingDealOrder':
-      // Keine Zeitbegrenzung in den Regeln – sollte nie eintreten.
-      round.deadline = null;
+      // Keine Wahl innerhalb von 7 s -> reiner Zufall zwischen beiden Optionen (unabhängig von den Karten).
+      chooseDealOrder(state, DEAL_ORDERS[ctx.rng.int(DEAL_ORDERS.length)] as DealOrder, true, ctx, events);
       break;
   }
 }
@@ -380,8 +386,14 @@ function performCut(state: MatchState, index: number, auto: boolean, ctx: Engine
   round.deck = result.deck;
   round.cut = { index, revealedCard: result.revealedCard, auto };
   events.push({ type: 'deckCut', seat: cutterSeat(state), cut: round.cut });
-  // Für "Tisch/Spieler zuerst" definieren die Regeln keine Zeitbegrenzung.
-  setPhase(round, 'choosingDealOrder', ctx.now, null);
+  setPhase(round, 'choosingDealOrder', ctx.now, ctx.now + state.timings.dealOrderMs);
+}
+
+function chooseDealOrder(state: MatchState, order: DealOrder, auto: boolean, ctx: EngineContext, events: MatchEvent[]): void {
+  state.round.dealOrder = order;
+  state.round.dealOrderAuto = auto;
+  events.push({ type: 'dealOrderChosen', seat: cutterSeat(state), order, auto });
+  performDeal(state, true, ctx, events);
 }
 
 function performDeal(state: MatchState, initial: boolean, ctx: EngineContext, events: MatchEvent[]): void {
@@ -526,7 +538,7 @@ export function autoActionFor(state: MatchState, seat: SeatIndex, rng: Rng): Mat
       return seat === cutterSeat(state) ? { type: 'cut', seat, index: randomCutIndex(round.deck.length, rng) } : null;
     case 'choosingDealOrder':
       return seat === cutterSeat(state)
-        ? { type: 'chooseDealOrder', seat, order: rng.int(2) === 0 ? 'playersFirst' : 'tableFirst' }
+        ? { type: 'chooseDealOrder', seat, order: DEAL_ORDERS[rng.int(DEAL_ORDERS.length)] as DealOrder }
         : null;
     case 'turn': {
       if (seat !== round.currentSeat) return null;

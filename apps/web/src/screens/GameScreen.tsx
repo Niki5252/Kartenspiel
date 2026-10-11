@@ -62,12 +62,15 @@ export function GameScreen({ view }: { view: RoomView }) {
   const nameOf = (seat: number) => playerAtSeat(view, seat)?.name ?? `Sitz ${seat + 1}`;
   const positionOf = (seat: number) => screenPositionOf(viewerSeat, seat, n);
 
-  const timerTotal = round.phase === 'cutting' ? match.timings.cutMs : match.timings.turnMs;
-  const showTimer = round.phase === 'cutting' || round.phase === 'turn' || round.phase === 'choosingCapture';
+  const timerTotal =
+    round.phase === 'cutting' ? match.timings.cutMs : round.phase === 'choosingDealOrder' ? match.timings.dealOrderMs : match.timings.turnMs;
+  const showTimer = ['cutting', 'choosingDealOrder', 'turn', 'choosingCapture'].includes(round.phase);
   const timerLabel =
     round.phase === 'cutting'
       ? `${nameOf(round.cutterSeat)} schneidet`
-      : `${round.currentSeat === mySeat ? 'Du bist' : `${nameOf(round.currentSeat)} ist`} am Zug`;
+      : round.phase === 'choosingDealOrder'
+        ? `${round.cutterSeat === mySeat ? 'Du wählst' : `${nameOf(round.cutterSeat)} wählt`}`
+        : `${round.currentSeat === mySeat ? 'Du bist' : `${nameOf(round.currentSeat)} ist`} am Zug`;
 
   const lastMove = round.lastMove;
   const moveText = lastMove
@@ -88,10 +91,19 @@ export function GameScreen({ view }: { view: RoomView }) {
     });
   };
 
+  const hostLeave = () =>
+    confirm({
+      title: 'Raum verlassen?',
+      message: 'Du bist Host. Wenn du den Raum verlässt, wird das laufende Spiel beendet und der Raum für alle geschlossen.',
+      confirmLabel: 'Raum schließen',
+      danger: true,
+      action: () => void api.leaveRoom(),
+    });
+
   const kickFromGame = (playerId: string, name: string) =>
     confirm({
       title: 'Spieler entfernen?',
-      message: `${name} wird entfernt. Das laufende Match wird dadurch beendet.`,
+      message: `${name} wird entfernt. Das laufende Match wird abgebrochen, die Punkte verfallen und alle kehren in die Lobby zurück.`,
       confirmLabel: 'Entfernen',
       danger: true,
       action: () => void call(() => api.kick(playerId)),
@@ -122,6 +134,9 @@ export function GameScreen({ view }: { view: RoomView }) {
                       {p.name} entfernen
                     </button>
                   ))}
+                <button type="button" className="btn btn--ghost btn--sm btn--block" onClick={hostLeave}>
+                  Raum verlassen
+                </button>
               </div>
             </details>
           )}
@@ -156,7 +171,15 @@ export function GameScreen({ view }: { view: RoomView }) {
             {round.phase === 'shuffling' && <span>Karten werden gemischt …</span>}
             {round.phase === 'cutting' && !iCut && <span>{nameOf(round.cutterSeat)} schneidet das Deck …</span>}
             {round.phase === 'choosingDealOrder' && !iChooseDeal && <span>{nameOf(round.cutterSeat)} wählt: Tisch oder Spieler zuerst …</span>}
-            {round.phase === 'dealing' && <span>Karten werden ausgeteilt …</span>}
+            {round.phase === 'dealing' && (
+              <span>
+                Karten werden ausgeteilt
+                {round.dealOrder && round.dealsDone === 1
+                  ? ` – ${round.dealOrder === 'playersFirst' ? 'Spieler zuerst' : 'Tisch zuerst'}${round.dealOrderAuto ? ' (Zeit abgelaufen, zufällig gewählt)' : ''}`
+                  : ''}{' '}
+                …
+              </span>
+            )}
             {round.phase === 'choosingCapture' && round.pending && !myPending && (
               <span>{nameOf(round.pending.seat)} wählt eine Aufnahme …</span>
             )}
@@ -236,7 +259,7 @@ export function GameScreen({ view }: { view: RoomView }) {
                 }
               />
             ))}
-            {visibleTable.length === 0 && round.phase !== 'shuffling' && round.phase !== 'cutting' && <span className="muted">Tisch ist leer</span>}
+            {visibleTable.length === 0 && round.dealsDone > 0 && <span className="muted">Tisch ist leer</span>}
           </div>
         </section>
 

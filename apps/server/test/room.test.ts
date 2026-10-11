@@ -214,3 +214,111 @@ describe('Room – Dev-Bots', () => {
     expect(() => room.setBot(a.id, true)).toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Verbindliche Raum-Regeln (zweite Regelrunde)
+// ---------------------------------------------------------------------------
+
+function startTwoPlayerMatch() {
+  const ctx = makeRoom(2);
+  const host = ctx.room.addPlayer('Host');
+  const guest = ctx.room.addPlayer('Gast');
+  ctx.room.markOnline(host.id);
+  ctx.room.markOnline(guest.id);
+  ctx.room.setReady(host.id, true);
+  ctx.room.setReady(guest.id, true);
+  ctx.clock.advance(3000);
+  expect(ctx.room.status).toBe('playing');
+  return { ...ctx, host, guest };
+}
+
+describe('Host verlässt den Raum', () => {
+  it('bewusstes Verlassen schließt den Raum für alle – auch während eines Matches', () => {
+    const { room, host, closed } = startTwoPlayerMatch();
+    room.leave(host.id);
+    expect(room.closed).toBe(true);
+    expect(closed).toHaveLength(1);
+    expect(closed[0]).toContain('geschlossen');
+    expect(() => room.gameAction(host.id, { type: 'cut', index: 5 })).toThrow(RoomError);
+  });
+
+  it('kurzer Disconnect / Hintergrund / Reload des Hosts schließt den Raum NICHT', () => {
+    const { room, host, clock, closed } = startTwoPlayerMatch();
+    const version = room.match!.version;
+    room.markOffline(host.id);
+    clock.advance(1000);
+    expect(room.getPlayer(host.id)?.connected).toBe(true); // noch innerhalb der Toleranz
+    clock.advance(60_000);
+    expect(room.closed).toBe(false);
+    expect(closed).toEqual([]);
+    expect(room.hostId).toBe(host.id);
+    expect(room.getPlayer(host.id)?.connected).toBe(false);
+    expect(room.match!.version).toBeGreaterThan(version); // Match lief weiter
+    // Reconnect wie bisher
+    expect(room.authenticate(host.id, room.getPlayer(host.id)!.token)).not.toBeNull();
+    room.markOnline(host.id);
+    expect(room.getPlayer(host.id)?.connected).toBe(true);
+    expect(room.status).toBe('playing');
+  });
+});
+
+describe('Host entfernt einen Spieler', () => {
+  it('in der Lobby: Spieler weg, Platz frei, Raum bleibt bestehen', () => {
+    const { room, removed, closed } = makeRoom(3);
+    const host = room.addPlayer('Host');
+    const b = room.addPlayer('B');
+    room.addPlayer('C');
+    expect(() => room.addPlayer('D')).toThrow('voll');
+    room.kick(host.id, b.id);
+    expect(removed).toEqual([b.id]);
+    expect(room.players.map((p) => p.name)).toEqual(['Host', 'C']);
+    expect(room.closed).toBe(false);
+    expect(closed).toEqual([]);
+    expect(room.addPlayer('Neu').name).toBe('Neu');
+    expect(room.players).toHaveLength(3);
+  });
+
+  it('während des Matches: Match abgebrochen, Punkte verworfen, Raum + Lobby bleiben, Platz frei', () => {
+    const { room, clock, host, guest, closed } = startTwoPlayerMatch();
+    room.match!.scores = { seat0: 7, seat1: 4 }; // simulierter Zwischenstand
+    room.kick(host.id, guest.id);
+
+    expect(room.closed).toBe(false);
+    expect(closed).toEqual([]);
+    expect(room.status).toBe('lobby');
+    expect(room.match).toBeNull();
+    expect(room.seats).toBeNull();
+    expect(room.notice).toContain('entfernt');
+    expect(room.players.map((p) => p.id)).toEqual([host.id]);
+    expect(room.players.every((p) => !p.ready)).toBe(true);
+
+    // neuer Spieler belegt den freien Platz, alle werden wieder bereit -> neues Match bei 0 Punkten
+    const newcomer = room.addPlayer('Neu');
+    room.setReady(host.id, true);
+    room.setReady(newcomer.id, true);
+    clock.advance(3000);
+    expect(room.status).toBe('playing');
+    expect(Object.values(room.match!.scores)).toEqual([0, 0]);
+    expect(room.match!.round.number).toBe(1);
+  });
+
+  it('der Host kann sich nicht selbst entfernen, andere Spieler dürfen nicht kicken', () => {
+    const { room, host, guest } = startTwoPlayerMatch();
+    expect(() => room.kick(host.id, host.id)).toThrow(RoomError);
+    expect(() => room.kick(guest.id, host.id)).toThrow(RoomError);
+    expect(room.status).toBe('playing');
+  });
+});
+
+describe('Tisch/Spieler-Wahl über den Raum', () => {
+  it('nach 7 s ohne Wahl entscheidet der Server, eine spätere Wahl wird abgelehnt', () => {
+    const { room, clock, host, guest } = startTwoPlayerMatch();
+    const cutter = room.seats![(room.match!.round.dealerSeat + 1) % 2]!;
+    clock.advance(1800 + 7000); // Mischen + Schneide-Timeout (Auto-Schnitt)
+    expect(room.match!.round.phase).toBe('choosingDealOrder');
+    clock.advance(7000);
+    expect(room.match!.round.dealOrderAuto).toBe(true);
+    expect(() => room.gameAction(cutter, { type: 'chooseDealOrder', order: 'tableFirst' })).toThrow(RoomError);
+    expect([host.id, guest.id]).toContain(cutter);
+  });
+});
