@@ -50,6 +50,7 @@ describe('Rundenablauf', () => {
     expect(applyAction(state, { type: 'cut', seat: 2, index: 10 }, ctx).ok).toBe(false);
     const deckBefore = state.round.deck;
     state = act(state, { type: 'cut', seat: 1, index: 10 }, ctx);
+    state = skip(state, ctx); // Schnitt-Animation (cutReveal)
     expect(state.round.cut?.revealedCard).toEqual(deckBefore[9]);
     expect(state.round.deck.at(-1)).toEqual(deckBefore[9]);
     expect(state.round.phase).toBe('choosingDealOrder');
@@ -73,6 +74,7 @@ describe('Rundenablauf', () => {
     state = skip(state, ctx);
     const cutDeck = deckAfterCut(state.round.deck, 5);
     state = act(state, { type: 'cut', seat: 1, index: 5 }, ctx);
+    state = skip(state, ctx); // Schnitt-Animation (cutReveal)
     state = act(state, { type: 'chooseDealOrder', seat: 1, order: 'tableFirst' }, ctx);
     const firstNonJacks = cutDeck.filter((c) => !isJack(c)).slice(0, 4);
     expect([...state.round.table].map((c) => c.id).sort()).toEqual(firstNonJacks.map((c) => c.id).sort());
@@ -82,6 +84,8 @@ describe('Rundenablauf', () => {
     let { ctx, state } = setup(3);
     state = skip(state, ctx);
     state = skip(state, ctx);
+    expect(state.round.phase).toBe('cutReveal');
+    state = skip(state, ctx);
     expect(state.round.phase).toBe('choosingDealOrder');
     expect(state.round.cut?.auto).toBe(true);
   });
@@ -90,6 +94,7 @@ describe('Rundenablauf', () => {
     let { ctx, state } = setup(2);
     state = skip(state, ctx);
     state = act(state, { type: 'cut', seat: 1, index: 20 }, ctx);
+    state = skip(state, ctx); // Schnitt-Animation (cutReveal)
     state = act(state, { type: 'chooseDealOrder', seat: 1, order: 'playersFirst' }, ctx);
     state = skip(state, ctx);
     const hand = state.round.hands[1]!;
@@ -166,6 +171,7 @@ describe('Komplette Matches (Simulation)', () => {
     let { ctx, state } = setup(3, 11);
     state = skip(state, ctx);
     state = act(state, { type: 'cut', seat: 1, index: 17 }, ctx);
+    state = skip(state, ctx); // Schnitt-Animation (cutReveal)
     const revealed = state.round.cut!.revealedCard;
     state = act(state, { type: 'chooseDealOrder', seat: 1, order: 'playersFirst' }, ctx);
     let sawRevealedWithDealer = false;
@@ -183,6 +189,7 @@ describe('Spieler-Sicht', () => {
     let { ctx, state } = setup(4);
     state = skip(state, ctx);
     state = act(state, { type: 'cut', seat: 1, index: 9 }, ctx);
+    state = skip(state, ctx); // Schnitt-Animation (cutReveal)
     state = act(state, { type: 'chooseDealOrder', seat: 1, order: 'playersFirst' }, ctx);
     const view = projectMatchView(state, 2);
     const json = JSON.stringify(view);

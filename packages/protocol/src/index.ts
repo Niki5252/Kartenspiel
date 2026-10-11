@@ -17,6 +17,8 @@ export interface PlayerPublic {
   ready: boolean;
   /** false = "Verbindung verloren" (erst nach einer kurzen Toleranzzeit). */
   connected: boolean;
+  /** false = Spieler war noch nie verbunden (z. B. automatisch erzeugter Dev-Testspieler). */
+  everConnected: boolean;
   isHost: boolean;
   isBot: boolean;
   seat: SeatIndex | null;

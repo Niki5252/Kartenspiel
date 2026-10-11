@@ -1,6 +1,12 @@
-import { type Card, type CardId, type ScreenPosition, findCaptureOptions, screenPositionOf, sortTable, teamOfSeat } from '@orlan/game';
+import { type Card, type CardId, findCaptureOptions, sortTable } from '@orlan/game';
 import type { RoomView } from '@orlan/protocol';
-import { type CSSProperties, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { CutAnimation, ShuffleAnimation } from '../anim/DeckAnimations';
+import { FlyLayer } from '../anim/FlyLayer';
+import { syncedDelay, useMountElapsed, usePhaseElapsed } from '../anim/phaseClock';
+import { anchors, moveTimeline, phaseVisibility, planFlights, visibilityMilestones } from '../anim/timeline';
+import { SoundToggle } from '../components/SoundToggle';
+import { TimerWarning } from '../sound/TimerWarning';
 import { CutPicker } from '../components/CutPicker';
 import { CardBack, PlayingCard } from '../components/PlayingCard';
 import { RoundSummary } from '../components/RoundSummary';
@@ -11,22 +17,11 @@ import { useConfirm } from '../components/useConfirm';
 import { describeCards, lastCardLabel, playerAtSeat, seatDisplays, shortCard, showEmptyTableHint } from '../lib/display';
 import { api } from '../net/client';
 
-/** Richtung (in % der Tischmitte), aus der Karten eines Sitzes kommen bzw. wohin sie gehen. */
-const POSITION_VECTOR: Record<ScreenPosition, { x: number; y: number }> = {
-  bottom: { x: 0, y: 160 },
-  top: { x: 0, y: -160 },
-  left: { x: -220, y: 0 },
-  right: { x: 220, y: 0 },
-  topLeft: { x: -160, y: -140 },
-  topRight: { x: 160, y: -140 },
-};
-
 export function GameScreen({ view }: { view: RoomView }) {
   const match = view.match!;
   const round = match.round;
   const mySeat = match.mySeat;
   const n = match.playerCount;
-  const viewerSeat = mySeat ?? 0;
   const [error, setError] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardId | null>(null);
   const [selectedCapture, setSelectedCapture] = useState<CardId[]>([]);
@@ -60,7 +55,6 @@ export function GameScreen({ view }: { view: RoomView }) {
   const selectionIsLegal = !!myPending?.options?.some((o) => captureKey(o) === captureKey(selectedCapture));
 
   const nameOf = (seat: number) => playerAtSeat(view, seat)?.name ?? `Sitz ${seat + 1}`;
-  const positionOf = (seat: number) => screenPositionOf(viewerSeat, seat, n);
 
   const timerTotal =
     round.phase === 'cutting' ? match.timings.cutMs : round.phase === 'choosingDealOrder' ? match.timings.dealOrderMs : match.timings.turnMs;
@@ -111,16 +105,22 @@ export function GameScreen({ view }: { view: RoomView }) {
 
   const seats = seatDisplays(view);
   const mySeatDisplay = seats.find((s) => s.isMe);
-  const inPlayZone = round.phase === 'moveAnimation' ? lastMove : null;
-  // Fall A (keine Aufnahme): Karte wird erst nach der Animation sortiert am Tisch angezeigt.
-  const animatingToTable = inPlayZone && inPlayZone.captured.length === 0 ? inPlayZone.card.id : null;
-  const visibleTable = animatingToTable ? round.table.filter((c) => c.id !== animatingToTable) : round.table;
+
+  // Animationen: reine Darstellung des bestätigten Serverzustands, synchronisiert über die Serverzeit.
+  const flights = useMemo(() => planFlights(view), [view]);
+  const vis = useMemo(() => phaseVisibility(view), [view]);
+  const elapsed = usePhaseElapsed(round.phaseStartedAt, visibilityMilestones(vis));
+  const mountElapsed = useMountElapsed(round.phaseStartedAt);
+  const shown = (at: number | undefined) => at === undefined || elapsed >= at;
+  const hiddenAfter = (at: number | undefined) => at !== undefined && elapsed >= at;
+  const liftDelay = syncedDelay(moveTimeline(match.timings.moveAnimationMs).flyInEnd, mountElapsed);
 
   return (
     <main className={`game game--${n}p`}>
       <header className="game__header">
         <ScoreBar view={view} />
         <div className="game__menu">
+          <SoundToggle />
           {isHost && (
             <details className="host-menu">
               <summary className="btn btn--ghost btn--sm" aria-label="Host-Menü">
@@ -158,7 +158,8 @@ export function GameScreen({ view }: { view: RoomView }) {
             <SeatBadge
               key={s.seat}
               display={s}
-              handCount={round.handCounts[s.seat] ?? 0}
+              handCount={shown(vis.handAppearAt[s.seat]) ? (round.handCounts[s.seat] ?? 0) : 0}
+              chipVisible={shown(vis.chipAppearAt)}
               isActive={isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, s.seat)}
             />
           ))}
@@ -169,6 +170,11 @@ export function GameScreen({ view }: { view: RoomView }) {
           <div className="center__status" aria-live="polite">
             {round.phase === 'shuffling' && <span>Karten werden gemischt …</span>}
             {round.phase === 'cutting' && !iCut && <span>{nameOf(round.cutterSeat)} schneidet das Deck …</span>}
+            {round.phase === 'cutReveal' && round.cut && (
+              <span>
+                {nameOf(round.cutterSeat)} hat bei {round.cut.index} Karten abgehoben{round.cut.auto ? ' (automatisch)' : ''} …
+              </span>
+            )}
             {round.phase === 'choosingDealOrder' && !iChooseDeal && <span>{nameOf(round.cutterSeat)} wählt: Tisch oder Spieler zuerst …</span>}
             {round.phase === 'dealing' && (
               <span>
@@ -187,21 +193,25 @@ export function GameScreen({ view }: { view: RoomView }) {
 
           <div className="center__deck">
             {round.phase === 'shuffling' ? (
-              <div className="shuffle-anim" aria-hidden="true">
-                <CardBack size="md" className="shuffle-anim__a" />
-                <CardBack size="md" className="shuffle-anim__b" />
-              </div>
+              <ShuffleAnimation key={round.phaseStartedAt} phaseStartedAt={round.phaseStartedAt} durationMs={match.timings.shuffleMs} />
+            ) : round.phase === 'cutReveal' && round.cut ? (
+              <CutAnimation
+                key={round.phaseStartedAt}
+                phaseStartedAt={round.phaseStartedAt}
+                durationMs={match.timings.cutRevealMs}
+                cutIndex={round.cut.index}
+                deckCount={round.deckCount}
+                revealedCard={round.cut.revealedCard}
+              />
             ) : (
-              round.deckCount > 0 && (
-                <div className="deck-stack" title={`${round.deckCount} Karten im Deck`}>
-                  <CardBack size="sm" />
-                  <span className="deck-stack__count">{round.deckCount}</span>
-                </div>
-              )
+              <div className={`deck-stack ${round.deckCount === 0 ? 'is-hidden' : ''}`} data-anchor={anchors.deck} title={`${round.deckCount} Karten im Deck`}>
+                <CardBack size="sm" />
+                <span className="deck-stack__count">{round.deckCount}</span>
+              </div>
             )}
-            {round.cut && round.deckCount > 0 && (
+            {round.cut && round.deckCount > 0 && round.phase !== 'cutReveal' && (
               <div className="cut-card">
-                <PlayingCard card={round.cut.revealedCard} size="sm" className={round.phase === 'choosingDealOrder' ? 'card--reveal' : ''} />
+                <PlayingCard card={round.cut.revealedCard} size="sm" className={round.phase === 'choosingDealOrder' ? 'card--settle' : ''} />
                 <span className="cut-card__text">
                   <small>{lastCardLabel(view)}</small>
                   {round.cut.auto && <small className="cut-card__auto">automatisch geschnitten</small>}
@@ -232,22 +242,23 @@ export function GameScreen({ view }: { view: RoomView }) {
             </p>
           )}
 
-          <div className="play-slot">
-            {(inPlayZone || round.pending) && (
-              <PlayZone
-                key={inPlayZone ? `${inPlayZone.seat}-${inPlayZone.card.id}` : `pending-${round.pending!.card.id}`}
-                card={inPlayZone ? inPlayZone.card : round.pending!.card}
-                captured={inPlayZone ? inPlayZone.captured : []}
-                from={POSITION_VECTOR[positionOf(inPlayZone ? inPlayZone.seat : round.pending!.seat)]}
-              />
+          <div className="play-slot" data-anchor={anchors.slot}>
+            {round.phase === 'choosingCapture' && round.pending && (
+              <PlayingCard card={round.pending.card} className={shown(vis.slotAppearAt) ? '' : 'is-hidden'} />
             )}
           </div>
 
-          <div className="table-cards" aria-label="Tischkarten">
-            {visibleTable.map((card) => (
+          <div className="table-cards" aria-label="Tischkarten" data-anchor={anchors.table}>
+            {vis.table.map((card) => (
               <PlayingCard
                 key={card.id}
                 card={card}
+                anchor={anchors.tableCard(card.id)}
+                className={[
+                  !shown(vis.tableAppearAt[card.id]) || hiddenAfter(vis.tableHideAt[card.id]) ? 'is-hidden' : '',
+                  vis.lifted.includes(card.id) ? 'card--lifting' : '',
+                ].join(' ')}
+                style={vis.lifted.includes(card.id) ? liftDelay : undefined}
                 highlighted={myPending ? captureOptionIds.has(card.id) : preview?.some((o) => o.includes(card.id))}
                 selected={selectedCapture.includes(card.id)}
                 dimmed={!!myPending && !captureOptionIds.has(card.id)}
@@ -258,13 +269,13 @@ export function GameScreen({ view }: { view: RoomView }) {
                 }
               />
             ))}
-            {visibleTable.length === 0 && showEmptyTableHint(view) && <span className="muted">Tisch ist leer</span>}
+            {vis.table.length === 0 && showEmptyTableHint(view) && <span className="muted">Tisch ist leer</span>}
           </div>
         </section>
 
         {mySeat !== null && (
-          <section className={`me ${isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, mySeat) ? 'is-active' : ''}`}>
-            {mySeatDisplay && <SeatBadge display={mySeatDisplay} handCount={myHand.length} isActive={false} />}
+          <section data-anchor={anchors.seat(mySeat)} className={`me ${isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, mySeat) ? 'is-active' : ''}`}>
+            {mySeatDisplay && <SeatBadge display={mySeatDisplay} handCount={myHand.length} chipVisible={shown(vis.chipAppearAt)} isActive={false} />}
 
             {myPending?.options && (
               <div className="capture-choice">
@@ -292,7 +303,7 @@ export function GameScreen({ view }: { view: RoomView }) {
               </div>
             )}
 
-            <div className="hand" aria-label="Deine Handkarten">
+            <div className={`hand ${shown(vis.handAppearAt[mySeat]) ? '' : 'is-hidden'}`} aria-label="Deine Handkarten">
               {myHand.map((card) => (
                 <PlayingCard
                   key={card.id}
@@ -335,6 +346,9 @@ export function GameScreen({ view }: { view: RoomView }) {
         </p>
       )}
 
+      <FlyLayer flights={flights} phaseStartedAt={round.phaseStartedAt} />
+      <TimerWarning view={view} />
+
       {round.phase === 'roundSummary' && <RoundSummary view={view} onReturnToLobby={() => void call(api.returnToLobby)} />}
       {dialog}
     </main>
@@ -346,18 +360,4 @@ function isSeatActive(phase: string, currentSeat: number, cutterSeat: number, pe
   if (phase === 'choosingCapture') return pendingSeat === seat;
   if (phase === 'cutting' || phase === 'choosingDealOrder') return cutterSeat === seat;
   return false;
-}
-
-/** Sichtbare Zuganimation: gespielte Karte kommt zur Mitte, aufgenommene Karten werden hervorgehoben und eingesammelt. */
-function PlayZone({ card, captured, from }: { card: Card; captured: Card[]; from: { x: number; y: number } }) {
-  const style = { '--from-x': `${from.x}%`, '--from-y': `${from.y}%` } as CSSProperties;
-  const collecting = captured.length > 0;
-  return (
-    <div className={`play-zone ${collecting ? 'play-zone--collect' : ''}`} style={style} aria-hidden="true">
-      <PlayingCard card={card} className="play-zone__played" />
-      {captured.map((c) => (
-        <PlayingCard key={c.id} card={c} className="play-zone__captured" highlighted />
-      ))}
-    </div>
-  );
 }

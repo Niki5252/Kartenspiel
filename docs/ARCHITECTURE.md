@@ -31,7 +31,7 @@ Browser (React)  ──Socket.IO──►  Node-Server (autoritativ)  ──► 
 ### Engine-Phasen einer Runde
 
 ```
-shuffling ─(Zeit)─► cutting ─(Schnitt / 7 s Auto)─► choosingDealOrder ─(Wahl / 7 s Zufall)─► dealing ─(Zeit)─► turn
+shuffling ─(Zeit)─► cutting ─(Schnitt / 7 s Auto)─► cutReveal ─(Animation)─► choosingDealOrder ─(Wahl / 7 s Zufall)─► dealing ─(Zeit)─► turn
 turn ─(Karte, 0–1 Option)──────────────► moveAnimation ─(Zeit)─► turn (nächster Sitz rechts)
 turn ─(Karte, ≥2 Optionen)─► choosingCapture ─(Nehmen / Timeout→beste)─► moveAnimation
 turn ─(10 s Timeout: zufällige Handkarte → beste Aufnahme)─► moveAnimation
@@ -70,3 +70,26 @@ angezeigt (kurzes App-Wechseln bleibt unsichtbar). Das Match pausiert nie.
 - `screens/` – Home (Erstellen/Beitreten), Lobby, Spieltisch.
 - `components/` – Karte, Timer-Balken, Sitzplatz, Punktestand, Schneiden, Rundenauswertung, Sicherheitsabfrage.
 - `dev/` – Dev-Launcher und Split-Screen (nur im Development-Build).
+
+## Animationen (apps/web/src/anim)
+
+Animationen sind **reine Darstellung** des bereits bestätigten Serverzustands.
+
+- Der Server legt Anzeigephasen mit fester Dauer fest: `shuffling` (1,8 s), `cutReveal` (1,7 s), `dealing` (1,8 s),
+  `moveAnimation` (1,3 s). Timer (Schneiden, Tisch/Spieler-Wahl, Zug) starten erst **nach** diesen Phasen.
+- `anim/timeline.ts` (rein, getestet) berechnet aus der Spielersicht Flüge (`planFlights`) und Sichtbarkeiten
+  (`phaseVisibility`). Alle Clients berechnen daraus identische Pläne.
+- **Synchronisation:** Der Fortschritt ist `serverNow − phaseStartedAt`. `FlyLayer` (Web Animations API) setzt
+  `currentTime` entsprechend, CSS-Animationen nutzen negative `animation-delay`s. Nach Reconnect oder auf langsamen
+  Geräten werden beendete Animationen übersprungen (`activeFlights`) – es gilt immer der echte Serverzustand.
+- Positionen kommen aus DOM-Ankern (`data-anchor="seat-2"`, `deck`, `slot`, `table`, `tcard-<id>`, `chip-<seat>`) →
+  korrekt auf jeder Bildschirmgröße; das Overlay ist fixiert und schneidet ab (kein horizontales Scrollen).
+- `prefers-reduced-motion`: keine Flüge/Effekte, Endzustand sofort sichtbar; Informationen stehen zusätzlich als Text.
+
+## Sound (apps/web/src/sound)
+
+- `soundsForEvents` ordnet Server-Ereignisse Sounds zu (rein, getestet), zeitlich passend zu den Animationen.
+- `soundPlayer` spielt „fire and forget“ über WebAudio, blockiert nie und beeinflusst keine Spiellogik.
+- AN/STUMM: `soundSettings`, lokal pro Browser (`localStorage`).
+- Platzhalter-Sounds werden synthetisch erzeugt. **Austauschen:** Datei nach `apps/web/public/sounds/` legen und in
+  `SOUND_FILES` (`sound/sounds.ts`) eintragen.

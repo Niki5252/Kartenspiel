@@ -1,7 +1,7 @@
 import { type MatchState, type PlayerCount, advanceTime, applyAction, createMatch, createSeededRng, projectMatchView } from '@orlan/game';
 import type { PlayerPublic, RoomView } from '@orlan/protocol';
 import { describe, expect, it } from 'vitest';
-import { lastCardLabel, seatDisplays, showEmptyTableHint } from './display';
+import { connectionLabel, lastCardLabel, seatDisplays, showEmptyTableHint } from './display';
 
 const NAMES = ['Nikola', 'Ana', 'Marko', 'Lea'];
 
@@ -14,6 +14,7 @@ function viewFor(state: MatchState, viewerSeat: number, hostSeat = 0): RoomView 
     team: n === 4 ? ((seat % 2) + 1 as 1 | 2) : null,
     ready: true,
     connected: true,
+    everConnected: true,
     isHost: seat === hostSeat,
     isBot: false,
     seat,
@@ -121,8 +122,11 @@ describe('"Tisch ist leer"', () => {
     expect(showEmptyTableHint(viewFor(state, 0))).toBe(false);
     const cut = applyAction(state, { type: 'cut', seat: 1, index: 10 }, ctx);
     if (!cut.ok) throw new Error(cut.error);
-    expect(cut.state.round.phase).toBe('choosingDealOrder');
+    expect(cut.state.round.phase).toBe('cutReveal');
     expect(showEmptyTableHint(viewFor(cut.state, 0))).toBe(false);
+    const choosing = advanceTime(cut.state, { ...ctx, now: cut.state.round.deadline! }).state;
+    expect(choosing.round.phase).toBe('choosingDealOrder');
+    expect(showEmptyTableHint(viewFor(choosing, 0))).toBe(false);
   });
 
   it('erscheint in einer echten Spielphase, wenn der Tisch leer ist', () => {
@@ -131,5 +135,22 @@ describe('"Tisch ist leer"', () => {
     state.round.dealsDone = 1;
     state.round.table = [];
     expect(showEmptyTableHint(viewFor(state, 0))).toBe(true);
+  });
+});
+
+describe('Verbindungshinweis', () => {
+  it('unterscheidet "Noch nicht verbunden" und "Verbindung verloren"', () => {
+    expect(connectionLabel({ connected: true, everConnected: true })).toBeNull();
+    expect(connectionLabel({ connected: true, everConnected: false })).toBeNull();
+    expect(connectionLabel({ connected: false, everConnected: true })).toBe('Verbindung verloren');
+    expect(connectionLabel({ connected: false, everConnected: false })).toBe('Noch nicht verbunden');
+  });
+
+  it('erscheint auch am Sitzplatz im Spiel', () => {
+    const view = viewFor(match(3), 0);
+    view.players[1]!.connected = false;
+    view.players[1]!.everConnected = false;
+    view.players[2]!.connected = false;
+    expect(seatDisplays(view).map((s) => s.connectionLabel)).toEqual([null, 'Noch nicht verbunden', 'Verbindung verloren']);
   });
 });

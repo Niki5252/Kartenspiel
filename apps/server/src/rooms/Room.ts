@@ -56,6 +56,8 @@ export interface RoomPlayer {
   connected: boolean;
   /** Tatsächlich offene Verbindung. */
   online: boolean;
+  /** War schon mindestens einmal verbunden (unterscheidet "Verbindung verloren" von "Noch nicht verbunden"). */
+  everConnected: boolean;
 }
 
 export interface RoomOptions {
@@ -116,6 +118,7 @@ export class Room {
       isBot: opts.isBot ?? false,
       connected: opts.isBot ?? false,
       online: opts.isBot ?? false,
+      everConnected: opts.isBot ?? false,
     };
     if (this.players.length === 0) this.hostId = player.id;
     this.players.push(player);
@@ -205,6 +208,7 @@ export class Room {
     this.clearDisconnectTimer(playerId);
     p.online = true;
     p.connected = true;
+    p.everConnected = true;
     this.lastActivityAt = this.deps.clock.now();
     this.changed();
   }
@@ -278,6 +282,7 @@ export class Room {
         team: p.team,
         ready: p.ready,
         connected: p.connected,
+        everConnected: p.everConnected || p.isBot,
         isHost: p.id === this.hostId,
         isBot: p.isBot,
         seat: this.seats ? this.seats.indexOf(p.id) : null,

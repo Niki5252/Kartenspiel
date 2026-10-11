@@ -26,8 +26,7 @@
 
 Keine offenen Regelfragen mehr. Technisch offen:
 
-
-- Sound (inkl. AN/STUMM) und ausgearbeitete Animationen – bewusst zurückgestellt.
+- Echte Audiodateien statt synthetischer Platzhalter (System ist vorbereitet, siehe docs/ARCHITECTURE.md).
 - Persistenz: Räume liegen im Arbeitsspeicher; ein Server-Neustart beendet laufende Räume, nur eine Instanz möglich.
 - Deployment / Hosting.
 

@@ -1,9 +1,10 @@
 import { MAX_TEAM_SIZE, type TeamNumber, requiresTeams } from '@orlan/game';
 import type { PlayerPublic, RoomView } from '@orlan/protocol';
 import { useState } from 'react';
+import { SoundToggle } from '../components/SoundToggle';
 import { useConfirm } from '../components/useConfirm';
 import { DevRoomTools } from '../dev/DevRoomTools';
-import { me, playerCountLabel } from '../lib/display';
+import { connectionLabel, me, playerCountLabel } from '../lib/display';
 import { api } from '../net/client';
 import { useServerNow } from '../net/hooks';
 
@@ -50,7 +51,10 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   return (
     <main className="lobby">
       <section className="panel lobby__code">
-        <span className="muted">Raumcode · {playerCountLabel(view.maxPlayers)}</span>
+        <div className="lobby__code-head">
+          <span className="muted">Raumcode · {playerCountLabel(view.maxPlayers)}</span>
+          <SoundToggle />
+        </div>
         <button type="button" className="room-code" onClick={() => copy(view.code)} title="Code kopieren">
           {view.code}
         </button>
@@ -160,13 +164,18 @@ function PlayerRow({ player, view, onKick }: { player: PlayerPublic; view: RoomV
   const isMe = player.id === view.myPlayerId;
   return (
     <li className={`player-row ${isMe ? 'is-me' : ''}`}>
-      <span className={`status-dot ${player.connected ? 'is-online' : 'is-offline'}`} title={player.connected ? 'verbunden' : 'Verbindung verloren'} />
+      <span
+        className={`status-dot ${player.connected ? 'is-online' : player.everConnected ? 'is-offline' : 'is-never'}`}
+        title={connectionLabel(player) ?? 'verbunden'}
+      />
       <span className="player-row__name">
         {player.name}
         {isMe && <span className="tag">du</span>}
         {player.isHost && <span className="tag tag--host">Host</span>}
         {player.isBot && <span className="tag">Bot</span>}
-        {!player.connected && <span className="tag tag--warn">Verbindung verloren</span>}
+        {connectionLabel(player) && (
+          <span className={`tag ${player.everConnected ? 'tag--warn' : ''}`}>{connectionLabel(player)}</span>
+        )}
       </span>
       <span className={`ready-badge ${player.ready ? 'is-ready' : ''}`}>{player.ready ? 'bereit' : 'nicht bereit'}</span>
       {isHost && !isMe && (

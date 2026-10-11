@@ -60,13 +60,16 @@ function turnState(hands: string[], table: string, playerCount: PlayerCount = 2)
   return { state, ctx };
 }
 
-/** Match direkt nach dem Schneiden (Phase choosingDealOrder). */
+/** Match direkt nach Schneiden + Schnitt-Animation (Phase choosingDealOrder). */
 function afterCut(seed = 3): { state: MatchState; ctx: EngineContext } {
   const ctx: EngineContext = { now: 0, rng: createSeededRng(seed) };
   let { state } = createMatch({ playerCount: 3, firstDealerSeat: 0 }, ctx);
   ctx.now = state.round.deadline!;
   state = advanceTime(state, ctx).state;
   state = ok(applyAction(state, { type: 'cut', seat: 1, index: 20 }, ctx));
+  // Schnitt-Animation abwarten – erst danach beginnen die 7 s
+  ctx.now = state.round.deadline!;
+  state = advanceTime(state, ctx).state;
   return { state, ctx };
 }
 
@@ -350,5 +353,55 @@ describe('Bube', () => {
     next = ok(applyAction(next, { type: 'playCard', seat: 0, cardId: 'DJ' }, ctx));
     expect(ids(next.round.lastMove!.captured)).toEqual(['HJ']);
     expect(ids(next.round.table)).toEqual(['DQ']);
+  });
+});
+
+describe('Timer starten erst nach der relevanten Animation', () => {
+  it('Zugtimer des nächsten Spielers startet erst nach der Zuganimation', () => {
+    const { state, ctx } = turnState(['C3 D4', 'H2 S5'], 'S9 HK');
+    const playedAt = ctx.now + 2500;
+    const moved = ok(applyAction(state, { type: 'playCard', seat: 1, cardId: 'H2' }, { ...ctx, now: playedAt }));
+    expect(moved.round.phase).toBe('moveAnimation');
+    expect(moved.round.deadline).toBe(playedAt + moved.timings.moveAnimationMs);
+    const during = advanceTime(moved, { ...ctx, now: moved.round.deadline! - 1 });
+    expect(during.changed).toBe(false);
+    expect(during.state.round.phase).toBe('moveAnimation');
+    const next = advanceTime(moved, { ...ctx, now: moved.round.deadline! }).state;
+    expect(next.round.phase).toBe('turn');
+    expect(next.round.currentSeat).toBe(0);
+    expect(next.round.phaseStartedAt).toBe(moved.round.deadline);
+    expect(next.round.deadline).toBe(moved.round.deadline! + next.timings.turnMs); // volle 10 s
+  });
+
+  it('erster Zug startet erst nach der Austeil-Animation', () => {
+    const { state, ctx } = afterCut();
+    const dealing = ok(applyAction(state, { type: 'chooseDealOrder', seat: 1, order: 'playersFirst' }, ctx));
+    expect(dealing.round.phase).toBe('dealing');
+    const turn = advanceTime(dealing, { ...ctx, now: dealing.round.deadline! }).state;
+    expect(turn.round.phase).toBe('turn');
+    expect(turn.round.deadline).toBe(dealing.round.deadline! + turn.timings.turnMs);
+  });
+
+  it('7-s-Wahl startet erst nach der Schnitt-Animation; während der Animation ist keine Wahl möglich', () => {
+    const ctx: EngineContext = { now: 0, rng: createSeededRng(3) };
+    let { state } = createMatch({ playerCount: 3, firstDealerSeat: 0 }, ctx);
+    ctx.now = state.round.deadline!;
+    state = advanceTime(state, ctx).state;
+    state = ok(applyAction(state, { type: 'cut', seat: 1, index: 20 }, ctx));
+    expect(state.round.phase).toBe('cutReveal');
+    expect(state.round.deadline).toBe(ctx.now + state.timings.cutRevealMs);
+    expect(applyAction(state, { type: 'chooseDealOrder', seat: 1, order: 'tableFirst' }, ctx).ok).toBe(false);
+    const choosing = advanceTime(state, { ...ctx, now: state.round.deadline! }).state;
+    expect(choosing.round.phase).toBe('choosingDealOrder');
+    expect(choosing.round.deadline).toBe(state.round.deadline! + 7000);
+  });
+
+  it('Kombinationsauswahl: Zeitpunkt des Ausspielens wird vermerkt, die Zug-Deadline bleibt unverändert', () => {
+    const { state, ctx } = turnState(['C3', 'H2 S5'], 'S9 C6 D3');
+    const pending = ok(applyAction(state, { type: 'playCard', seat: 1, cardId: 'H2' }, { ...ctx, now: ctx.now + 4000 }));
+    expect(pending.round.phaseStartedAt).toBe(ctx.now + 4000);
+    expect(pending.round.deadline).toBe(state.round.deadline);
+    const taken = ok(applyAction(pending, { type: 'chooseCapture', seat: 1, cardIds: ['S9'] }, { ...ctx, now: ctx.now + 5000 }));
+    expect(taken.round.lastMove!.viaChoice).toBe(true);
   });
 });

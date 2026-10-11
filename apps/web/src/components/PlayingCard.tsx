@@ -1,4 +1,5 @@
 import { type Card, RANK_LABEL_DE, SUIT_SYMBOL, cardLabel, isRedSuit } from '@orlan/game';
+import type { CSSProperties } from 'react';
 
 interface Props {
   card: Card;
@@ -8,10 +9,13 @@ interface Props {
   size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
   className?: string;
+  style?: CSSProperties;
+  /** Ziel-/Startpunkt für Flug-Animationen. */
+  anchor?: string;
 }
 
 /** Klassische französische Karte: Herz/Karo rot, Kreuz/Pik schwarz. */
-export function PlayingCard({ card, selected, highlighted, dimmed, size = 'md', onClick, className = '' }: Props) {
+export function PlayingCard({ card, selected, highlighted, dimmed, size = 'md', onClick, className = '', style, anchor }: Props) {
   const classes = [
     'card',
     `card--${size}`,
@@ -39,18 +43,18 @@ export function PlayingCard({ card, selected, highlighted, dimmed, size = 'md', 
   );
   if (onClick) {
     return (
-      <button type="button" className={classes} onClick={onClick} aria-label={cardLabel(card)} aria-pressed={selected}>
+      <button type="button" className={classes} style={style} data-anchor={anchor} onClick={onClick} aria-label={cardLabel(card)} aria-pressed={selected}>
         {content}
       </button>
     );
   }
   return (
-    <div className={classes} role="img" aria-label={cardLabel(card)}>
+    <div className={classes} style={style} data-anchor={anchor} role="img" aria-label={cardLabel(card)}>
       {content}
     </div>
   );
 }
 
-export function CardBack({ size = 'sm', className = '' }: { size?: 'xs' | 'sm' | 'md'; className?: string }) {
-  return <div className={`card card--${size} card--back ${className}`} aria-hidden="true" />;
+export function CardBack({ size = 'sm', className = '', style }: { size?: 'xs' | 'sm' | 'md'; className?: string; style?: CSSProperties }) {
+  return <div className={`card card--${size} card--back ${className}`} style={style} aria-hidden="true" />;
 }

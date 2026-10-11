@@ -31,7 +31,9 @@ export interface MatchTimings {
   shuffleMs: number;
   /** Zeit zum Schneiden (Regel: 7 Sekunden). */
   cutMs: number;
-  /** Zeit für die Wahl "Spieler zuerst / Tisch zuerst" (Regel: 7 Sekunden). */
+  /** Sichtbare Schnitt-Animation (Stapel teilen, Karte zeigen, unterlegen) – reine Darstellung. */
+  cutRevealMs: number;
+  /** Zeit für die Wahl "Spieler zuerst / Tisch zuerst" (Regel: 7 Sekunden, startet nach der Schnitt-Animation). */
   dealOrderMs: number;
   /** Sichtbare Austeilanimation. */
   dealMs: number;
@@ -46,8 +48,9 @@ export interface MatchTimings {
 export const DEFAULT_TIMINGS: MatchTimings = {
   shuffleMs: 1800,
   cutMs: 7000,
+  cutRevealMs: 1700,
   dealOrderMs: 7000,
-  dealMs: 1200,
+  dealMs: 1800,
   turnMs: 10000,
   moveAnimationMs: 1300,
   roundSummaryMs: 12000,
@@ -58,6 +61,7 @@ export type DealOrder = 'playersFirst' | 'tableFirst';
 export type RoundPhase =
   | 'shuffling'
   | 'cutting'
+  | 'cutReveal'
   | 'choosingDealOrder'
   | 'dealing'
   | 'turn'
@@ -78,6 +82,8 @@ export interface MoveRecord {
   card: Card;
   captured: Card[];
   byTimeout: boolean;
+  /** true = Karte lag bereits während der Kombinationsauswahl in der Mitte (nur für die Darstellung). */
+  viaChoice: boolean;
 }
 
 export interface PendingCapture {
@@ -279,8 +285,9 @@ export function applyAction(state: MatchState, action: MatchAction, ctx: EngineC
         // Karte ist verbindlich gespielt, der Spieler wählt nun die Kombination.
         removeFromHand(round, action.seat, card.id);
         round.pending = { seat: action.seat, card, options };
-        round.phase = 'choosingCapture';
-        // Der Zug-Timer läuft weiter; bei Ablauf wählt das System die beste Aufnahme.
+        // Der Zug-Timer läuft weiter (gleiche Deadline); bei Ablauf wählt das System die beste Aufnahme.
+        // phaseStartedAt markiert nur den Zeitpunkt des Ausspielens für die Animation.
+        setPhase(round, 'choosingCapture', ctx.now, round.deadline);
         events.push({ type: 'captureChoiceRequired', seat: action.seat });
       }
       break;
@@ -359,6 +366,10 @@ function onDeadline(state: MatchState, ctx: EngineContext, events: MatchEvent[])
     case 'roundSummary':
       startNextRound(state, ctx, events);
       break;
+    case 'cutReveal':
+      // Schnitt-Animation beendet -> erst jetzt beginnen die 7 s für die Wahl.
+      setPhase(round, 'choosingDealOrder', ctx.now, ctx.now + state.timings.dealOrderMs);
+      break;
     case 'choosingDealOrder':
       // Keine Wahl innerhalb von 7 s -> reiner Zufall zwischen beiden Optionen (unabhängig von den Karten).
       chooseDealOrder(state, DEAL_ORDERS[ctx.rng.int(DEAL_ORDERS.length)] as DealOrder, true, ctx, events);
@@ -386,7 +397,7 @@ function performCut(state: MatchState, index: number, auto: boolean, ctx: Engine
   round.deck = result.deck;
   round.cut = { index, revealedCard: result.revealedCard, auto };
   events.push({ type: 'deckCut', seat: cutterSeat(state), cut: round.cut });
-  setPhase(round, 'choosingDealOrder', ctx.now, ctx.now + state.timings.dealOrderMs);
+  setPhase(round, 'cutReveal', ctx.now, ctx.now + state.timings.cutRevealMs);
 }
 
 function chooseDealOrder(state: MatchState, order: DealOrder, auto: boolean, ctx: EngineContext, events: MatchEvent[]): void {
@@ -457,7 +468,7 @@ function resolvePlay(
     round.table = sortTable([...round.table, card]);
   }
 
-  round.lastMove = { seat, card, captured, byTimeout };
+  round.lastMove = { seat, card, captured, byTimeout, viaChoice: alreadyRemovedFromHand };
   events.push({ type: 'cardPlayed', move: round.lastMove });
   setPhase(round, 'moveAnimation', ctx.now, ctx.now + state.timings.moveAnimationMs);
 }

@@ -179,6 +179,7 @@ button { font: inherit; color: inherit; }
 .status-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .status-dot.is-online { background: var(--primary); }
 .status-dot.is-offline { background: var(--warn); }
+.status-dot.is-never { background: transparent; border: 1.5px solid var(--muted); }
 .ready-badge { font-size: 0.78rem; color: var(--muted); }
 .ready-badge.is-ready { color: var(--primary); font-weight: 600; }
 .countdown {
@@ -239,8 +240,6 @@ button { font: inherit; color: inherit; }
 .card--selected { transform: translateY(-14px) !important; box-shadow: 0 0 0 3px var(--accent), 0 10px 20px rgba(0, 0, 0, 0.4); }
 .card--highlighted { box-shadow: 0 0 0 2px var(--primary), 0 0 14px rgba(63, 176, 143, 0.6); }
 .card--dimmed { opacity: 0.45; }
-.card--reveal { animation: reveal 0.6s ease-out; }
-@keyframes reveal { from { transform: rotateY(90deg) scale(1.2); } to { transform: none; } }
 
 /* ---------------------------------------------------------------- Spielansicht */
 .game {
@@ -350,7 +349,10 @@ button { font: inherit; color: inherit; }
 }
 .center__timer { width: min(100%, 420px); min-height: 22px; }
 .center__status { min-height: 1.3em; text-align: center; font-size: 0.92rem; color: var(--muted); }
-.center__deck { display: flex; align-items: center; gap: 14px; min-height: calc(var(--card-w-sm) * 1.4); }
+.center__deck {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px;
+  max-width: 100%; min-width: 0; min-height: calc(var(--card-w-sm) * 1.4);
+}
 .deck-stack { position: relative; }
 .deck-stack::before, .deck-stack::after {
   content: ''; position: absolute; inset: 0; border-radius: 4px; background: #245b4d; border: 1px solid #f1ead8;
@@ -363,8 +365,9 @@ button { font: inherit; color: inherit; }
   font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000;
 }
 .cut-card { display: flex; align-items: center; gap: 8px; }
-.cut-card__text { display: flex; flex-direction: column; gap: 1px; max-width: 170px; color: var(--muted); line-height: 1.25; }
-.cut-card__text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cut-card { min-width: 0; max-width: 100%; }
+.cut-card__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; max-width: 170px; color: var(--muted); line-height: 1.25; }
+.cut-card__text small { overflow-wrap: anywhere; }
 .cut-card__auto { font-size: 0.68rem; opacity: 0.8; }
 
 .table-cards {
@@ -382,12 +385,6 @@ button { font: inherit; color: inherit; }
 }
 .timer--idle { background: transparent; }
 
-.shuffle-anim { position: relative; width: var(--card-w-md); height: calc(var(--card-w-md) * 1.4); }
-.shuffle-anim .card { position: absolute; inset: 0; }
-.shuffle-anim__a { animation: shuffle-a 0.6s ease-in-out infinite; }
-.shuffle-anim__b { animation: shuffle-b 0.6s ease-in-out infinite; }
-@keyframes shuffle-a { 50% { transform: translateX(-60%) rotate(-8deg); } }
-@keyframes shuffle-b { 50% { transform: translateX(60%) rotate(8deg); } }
 
 .cut-picker, .deal-choice, .capture-choice {
   width: min(100%, 420px); display: flex; flex-direction: column; gap: 10px; align-items: stretch; text-align: center;
@@ -399,17 +396,6 @@ button { font: inherit; color: inherit; }
 .cut-picker__part--bottom { background: #1c473c; border-left: 3px solid var(--accent); }
 .cut-picker__range { width: 100%; accent-color: var(--accent); }
 
-/* Zuganimation (ca. 1,3 s, synchron zur Server-Phase "moveAnimation") */
-.play-slot { min-height: calc(var(--card-w-md) * 1.4); display: flex; align-items: center; justify-content: center; }
-.play-zone { position: relative; z-index: 5; display: flex; gap: 6px; pointer-events: none; }
-.play-zone__played { animation: play-in 0.4s ease-out both; }
-.play-zone--collect .play-zone__played,
-.play-zone--collect .play-zone__captured { animation: play-in 0.4s ease-out both, collect 0.6s 0.7s ease-in forwards; }
-.play-zone__captured { animation-name: lift; animation-duration: 0.35s; animation-delay: 0.35s; animation-fill-mode: both; }
-.play-zone--collect .play-zone__captured { animation: lift 0.3s 0.35s ease-out both, collect 0.6s 0.7s ease-in forwards; }
-@keyframes play-in { from { transform: translate(var(--from-x), var(--from-y)) scale(0.8); opacity: 0.2; } }
-@keyframes lift { from { transform: translateY(0); opacity: 0; } to { transform: translateY(-8px); opacity: 1; } }
-@keyframes collect { to { transform: translate(var(--from-x), var(--from-y)) scale(0.4); opacity: 0; } }
 
 .me { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px; border-radius: 14px; border: 1px solid transparent; }
 .me .seat { padding: 0; }
@@ -459,4 +445,104 @@ button { font: inherit; color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* ================================================================ Animationen
+   Alle Animationen sind reine Darstellung. Zeitpunkte werden über negative animation-delays
+   (--t0 = bereits vergangene Phasenzeit) auf die Serverzeit synchronisiert. */
+
+.is-hidden { visibility: hidden !important; }
+
+/* Timer und Namen liegen über der Flug-Ebene – Flüge verdecken sie nie */
+.center__timer, .center__status, .seat__name { position: relative; z-index: 45; }
+
+.fly-layer { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; contain: strict; }
+.flight { position: absolute; left: 0; top: 0; visibility: hidden; will-change: transform, opacity; }
+.flight .card { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); }
+.flight__packet { position: relative; width: var(--card-w-sm); height: calc(var(--card-w-sm) * 1.4); }
+.flight__packet .card { position: absolute; inset: 0; }
+.flight__packet .card:nth-child(2) { transform: translate(2px, -2px); }
+.flight__packet .card:nth-child(3) { transform: translate(4px, -4px); }
+.flight--chip .dealer-chip { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); }
+
+/* Aufnahme: Karten am Tisch werden hervorgehoben und leicht angehoben */
+.card--lifting { animation: card-lift 0.35s cubic-bezier(.3,.7,.3,1) both; }
+@keyframes card-lift {
+  from { transform: none; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+  to { transform: translateY(-10px); box-shadow: 0 0 0 2px var(--accent), 0 0 18px rgba(226, 193, 105, 0.6); }
+}
+
+/* Gezeigte Schnittkarte setzt sich sanft neben das Deck */
+.card--settle { animation: settle 0.35s ease-out both; }
+@keyframes settle { from { transform: translateY(-6px) scale(1.08); opacity: 0.6; } }
+
+/* ---- Mischen: zwei Hälften auseinander, verzahnt zusammenschieben (2 Durchgänge) */
+.shuffle { position: relative; width: min(100%, calc(var(--card-w-md) * 2.6)); height: calc(var(--card-w-md) * 1.5); }
+.shuffle__card {
+  position: absolute; left: 50%; top: 50%; margin-left: calc(var(--card-w-md) / -2); margin-top: calc(var(--card-w-md) * -0.7);
+  animation-duration: calc(var(--dur) / 2);
+  animation-iteration-count: 2;
+  animation-timing-function: cubic-bezier(.45,.05,.35,1);
+  animation-delay: calc(var(--t0) + var(--i) * 18ms);
+  animation-fill-mode: both;
+}
+.shuffle__card--l { animation-name: riffle-l; }
+.shuffle__card--r { animation-name: riffle-r; }
+@keyframes riffle-l {
+  0% { transform: translate(0, calc(var(--i) * -1px)); }
+  35% { transform: translate(-62%, calc(var(--i) * -1px)) rotate(-7deg); }
+  65% { transform: translate(-58%, calc(var(--i) * -1px)) rotate(-4deg); }
+  100% { transform: translate(0, calc(var(--i) * -1px)); }
+}
+@keyframes riffle-r {
+  0% { transform: translate(0, calc(var(--i) * -1px)); }
+  35% { transform: translate(62%, calc(var(--i) * -1px)) rotate(7deg); }
+  65% { transform: translate(58%, calc(var(--i) * -1px)) rotate(4deg); }
+  100% { transform: translate(0, calc(var(--i) * -1px)); }
+}
+
+/* ---- Schneiden: oberer Stapel hoch, unterste Karte zeigen, unter den unteren Stapel legen */
+.cut-anim { position: relative; width: min(100%, calc(var(--card-w-md) * 2.8)); height: calc(var(--card-w-md) * 2.1); }
+.cut-anim__bottom, .cut-anim__top {
+  position: absolute; left: 50%; top: 55%; margin-left: calc(var(--card-w-md) / -2); margin-top: calc(var(--card-w-md) * -0.7);
+}
+.cut-anim__count {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000;
+}
+.cut-anim__bottom { z-index: 2; }
+.cut-anim__top { z-index: 3; animation: cut-top var(--dur) cubic-bezier(.4,.1,.3,1) both; animation-delay: var(--t0); }
+@keyframes cut-top {
+  0% { transform: none; z-index: 3; }
+  25% { transform: translate(78%, -42%) rotate(4deg); z-index: 3; }
+  60% { transform: translate(78%, -42%) rotate(4deg); z-index: 3; }
+  62% { z-index: 1; }
+  80% { transform: translate(-12%, 6%) rotate(-2deg); z-index: 1; }
+  100% { transform: translate(0, 3px); z-index: 1; }
+}
+/* unterste Karte des abgehobenen Stapels wird kurz offen gezeigt */
+.cut-anim__reveal {
+  position: absolute; left: 0; top: 0; z-index: 4;
+  animation: cut-reveal var(--dur) ease-out both; animation-delay: var(--t0);
+}
+@keyframes cut-reveal {
+  0%, 28% { transform: translateY(0) rotateX(90deg); opacity: 0; }
+  36% { transform: translateY(58%) rotateX(0deg); opacity: 1; }
+  58% { transform: translateY(58%); opacity: 1; }
+  66%, 100% { transform: translateY(0); opacity: 0; }
+}
+
+/* Dealer-Chip: dezentes Einrasten am neuen Platz */
+.dealer-chip:not(.is-hidden) { animation: chip-in 0.25s ease-out; }
+@keyframes chip-in { from { transform: scale(0.6); } }
+
+.lobby__code-head { display: flex; align-items: center; gap: 10px; justify-content: center; }
+.sound-toggle { min-width: 40px; }
+.game__menu { display: flex; gap: 6px; align-items: center; }
+
+/* Reduzierte Bewegung: keine Flüge, keine Wackel-Effekte; Informationen bleiben als Text sichtbar */
+@media (prefers-reduced-motion: reduce) {
+  .fly-layer { display: none; }
+  .shuffle__card, .cut-anim__top, .cut-anim__reveal, .card--lifting, .card--settle, .dealer-chip { animation: none !important; }
+  .cut-anim__reveal { opacity: 1; transform: translateY(58%); }
 }

@@ -5,6 +5,8 @@ interface Props {
   display: SeatDisplay;
   handCount: number;
   isActive: boolean;
+  /** false, solange der Dealer-Chip noch zum neuen Dealer fliegt. */
+  chipVisible?: boolean;
 }
 
 /**
@@ -12,23 +14,23 @@ interface Props {
  * Zeile 1: der echte Spielername (bei Bedarf gekürzt). Zeile 2: Rollen-Badges (Dealer, Host, Team, Verbindung).
  * Die Badges stehen getrennt vom Namen, damit sie die Position nicht verschieben.
  */
-export function SeatBadge({ display, handCount, isActive }: Props) {
-  const { name, position, isMe, roles, team, connected } = display;
+export function SeatBadge({ display, handCount, isActive, chipVisible = true }: Props) {
+  const { name, position, isMe, roles, team, connectionLabel } = display;
   return (
-    <div className={`seat seat--${position} ${isActive ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${team ? `seat--team${team}` : ''}`}>
+    <div data-anchor={isMe ? undefined : `seat-${display.seat}`} className={`seat seat--${position} ${isActive ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${team ? `seat--team${team}` : ''}`}>
       <span className="seat__name" title={name}>
         {name}
         {isMe && <span className="seat__you"> (du)</span>}
       </span>
-      <span className="seat__roles">
+      <span className="seat__roles" data-anchor={`chip-${display.seat}`}>
         {roles.includes('dealer') && (
-          <span className="dealer-chip" title="Dealer" aria-label="Dealer">
+          <span className={`dealer-chip ${chipVisible ? '' : 'is-hidden'}`} title="Dealer" aria-label="Dealer">
             D
           </span>
         )}
         {roles.includes('host') && <span className="tag tag--host">Host</span>}
         {team && <span className="tag">Team {team}</span>}
-        {!connected && <span className="tag tag--warn">Verbindung verloren</span>}
+        {connectionLabel && <span className="tag tag--warn">{connectionLabel}</span>}
       </span>
       {!isMe && (
         <div className="seat__hand" aria-label={`${handCount} Handkarten`}>

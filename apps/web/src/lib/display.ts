@@ -6,6 +6,15 @@ export function playerAtSeat(view: RoomView, seat: number): PlayerPublic | undef
   return id ? view.players.find((p) => p.id === id) : undefined;
 }
 
+/**
+ * Verbindungshinweis neben dem Namen – null, wenn verbunden.
+ * "Verbindung verloren" nur, wenn der Spieler schon einmal verbunden war.
+ */
+export function connectionLabel(player: Pick<PlayerPublic, 'connected' | 'everConnected'> | undefined): string | null {
+  if (!player || player.connected) return null;
+  return player.everConnected ? 'Verbindung verloren' : 'Noch nicht verbunden';
+}
+
 export function me(view: RoomView): PlayerPublic | undefined {
   return view.players.find((p) => p.id === view.myPlayerId);
 }
@@ -48,6 +57,7 @@ export interface SeatDisplay {
   roles: SeatRole[];
   team: number | null;
   connected: boolean;
+  connectionLabel: string | null;
 }
 
 /** Alle Sitze aus Sicht des eigenen Clients (eigener Sitz immer unten). */
@@ -69,6 +79,7 @@ export function seatDisplays(view: RoomView): SeatDisplay[] {
       roles,
       team: n === 4 ? teamOfSeat(seat) : null,
       connected: player?.connected ?? false,
+      connectionLabel: connectionLabel(player),
     };
   });
 }

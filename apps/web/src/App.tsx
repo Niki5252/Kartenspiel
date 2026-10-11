@@ -4,12 +4,14 @@ import { useClientState } from './net/hooks';
 import { GameScreen } from './screens/GameScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { LobbyScreen } from './screens/LobbyScreen';
+import { useGameSounds } from './sound/useGameSounds';
 
 // Dev-Werkzeuge werden im Produktions-Build komplett entfernt (import.meta.env.DEV ist dort false).
 const DevLauncher = import.meta.env.DEV ? lazy(() => import('./dev/DevLauncher').then((m) => ({ default: m.DevLauncher }))) : null;
 
 export function App() {
   const state = useClientState();
+  useGameSounds(state);
 
   if (DevLauncher && window.location.pathname === '/dev') {
     return (

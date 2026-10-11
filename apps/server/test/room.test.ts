@@ -189,7 +189,7 @@ describe('Room – Verbindung', () => {
     const b = room.addPlayer('B');
     room.setReady(a.id, true);
     room.setReady(b.id, true);
-    clock.advance(3000 + 1800 + 7000);
+    clock.advance(3000 + 1800 + 7000 + 1700); // Countdown + Mischen + Auto-Schnitt + Schnitt-Animation
     room.gameAction(b.id, { type: 'chooseDealOrder', order: 'playersFirst' });
     const json = JSON.stringify(room.viewFor(a.id));
     expect(json).not.toContain(room.getPlayer(b.id)!.token);
@@ -314,7 +314,7 @@ describe('Tisch/Spieler-Wahl über den Raum', () => {
   it('nach 7 s ohne Wahl entscheidet der Server, eine spätere Wahl wird abgelehnt', () => {
     const { room, clock, host, guest } = startTwoPlayerMatch();
     const cutter = room.seats![(room.match!.round.dealerSeat + 1) % 2]!;
-    clock.advance(1800 + 7000); // Mischen + Schneide-Timeout (Auto-Schnitt)
+    clock.advance(1800 + 7000 + 1700); // Mischen + Schneide-Timeout (Auto-Schnitt) + Schnitt-Animation
     expect(room.match!.round.phase).toBe('choosingDealOrder');
     clock.advance(7000);
     expect(room.match!.round.dealOrderAuto).toBe(true);
@@ -418,5 +418,73 @@ describe('Nicht-Host verlässt bewusst während eines Matches', () => {
     expect(room.status).toBe('playing');
     expect(room.match!.scores).toEqual(scores);
     expect(room.viewFor(b.id).match?.mySeat).toBe(room.seats!.indexOf(b.id));
+  });
+});
+
+describe('Verbindungsstatus: "Noch nicht verbunden" vs. "Verbindung verloren"', () => {
+  it('nie verbundener (Dev-)Testspieler ist "noch nicht verbunden", nicht "Verbindung verloren"', () => {
+    const { room } = makeRoom(3, true);
+    const host = room.addPlayer('Nikola');
+    const p2 = room.addPlayer('P2');
+    room.markOnline(host.id);
+    const pub = room.viewFor(host.id).players.find((p) => p.id === p2.id)!;
+    expect(pub.connected).toBe(false);
+    expect(pub.everConnected).toBe(false);
+  });
+
+  it('war verbunden und ist länger weg -> "Verbindung verloren"', () => {
+    const { room, clock } = makeRoom(2);
+    const a = room.addPlayer('A');
+    const b = room.addPlayer('B');
+    room.markOnline(a.id);
+    room.markOnline(b.id);
+    room.markOffline(b.id);
+    clock.advance(CONNECTION_LOST_GRACE_MS);
+    const pub = room.viewFor(a.id).players.find((p) => p.id === b.id)!;
+    expect(pub.connected).toBe(false);
+    expect(pub.everConnected).toBe(true);
+  });
+
+  it('Bots gelten als verbunden; erste Verbindung macht aus "nie" einen normalen Spieler', () => {
+    const { room } = makeRoom(3, true);
+    room.addPlayer('Nikola');
+    const bot = room.addPlayer('P2', { isBot: true });
+    const p3 = room.addPlayer('P3');
+    const view = () => room.viewFor(bot.id).players;
+    expect(view().find((p) => p.id === bot.id)).toMatchObject({ connected: true, everConnected: true });
+    room.markOnline(p3.id);
+    expect(view().find((p) => p.id === p3.id)).toMatchObject({ connected: true, everConnected: true });
+  });
+});
+
+describe('Reconnect während einer Animation', () => {
+  it('der wiederverbundene Client erhält den echten Serverzustand inkl. Phasenzeit (synchrone Darstellung)', () => {
+    const { room, clock } = makeRoom(2);
+    const a = room.addPlayer('A');
+    const b = room.addPlayer('B');
+    for (const p of [a, b]) {
+      room.markOnline(p.id);
+      room.setReady(p.id, true);
+    }
+    clock.advance(3000 + 1800 + 7000 + 1700 + 7000 + 1800); // bis zum ersten Zug (alles automatisch)
+    expect(room.match!.round.phase).toBe('turn');
+    const current = room.seats![room.match!.round.currentSeat]!;
+    const other = current === a.id ? b.id : a.id;
+    room.gameAction(current, { type: 'playCard', cardId: room.match!.round.hands[room.match!.round.currentSeat]![0]!.id });
+    expect(room.match!.round.phase).toBe('moveAnimation');
+
+    room.markOffline(other);
+    clock.advance(500); // mitten in der Animation
+    room.markOnline(other);
+    const resumed = room.viewFor(other);
+    const reference = room.viewFor(current);
+    expect(resumed.match!.round.phase).toBe('moveAnimation');
+    expect(resumed.match!.round.phaseStartedAt).toBe(reference.match!.round.phaseStartedAt);
+    expect(resumed.match!.round.deadline).toBe(reference.match!.round.deadline);
+    expect(resumed.match!.round.lastMove).toEqual(reference.match!.round.lastMove);
+    expect(resumed.serverNow).toBe(clock.time);
+    // Die Logik läuft unabhängig von jeder Darstellung weiter
+    clock.advance(room.match!.timings.moveAnimationMs);
+    expect(room.match!.round.phase).toBe('turn');
   });
 });
