@@ -26,6 +26,7 @@ Im lokalen Netzwerk (z. B. echtes Smartphone) die von Vite angezeigte `Network:`
 | `npm test`          | Automatisierte Tests (Spiellogik + Server-Räume)                |
 | `npm run typecheck` | TypeScript-Prüfung aller Pakete                                 |
 | `npm run build`     | Produktions-Build (Frontend + Server-Bundle)                    |
+| `npm run check:layout` | Optional: Layout-Prüfung im Browser (Tischkarten vollständig sichtbar u. a.; braucht `npm run dev` + Playwright) |
 | `npm start`         | Produktionsserver – liefert auch das gebaute Frontend aus       |
 
 ## Development / Test Mode
@@ -42,6 +43,8 @@ Möglichkeiten:
   - **„In neuem Tab öffnen“**: jeder Testspieler in einem eigenen Tab/Fenster.
 - **Mehrere Tabs manuell**: Jeder Browser-Tab ist automatisch ein eigener Spieler (Sitzung im `sessionStorage`).
   Tab 1 erstellt den Raum, Tab 2–4 treten mit dem Code bei.
+- **Sitzplätze & Teams (4 Spieler)**: In der Lobby eines Testraums pro Sitz den Spieler wählen. Sitz 1 + 3 = Team 1,
+  Sitz 2 + 4 = Team 2 (immer gegenüber); belegte Sitze werden getauscht.
 - **Bot umschalten**: In der Lobby eines Dev-Raums kann jeder Testspieler auf „Bot spielt automatisch“ gestellt werden.
 - **Disconnect/Reconnect testen**: Tab neu laden (Wiederverbindung) oder Tab schließen und den Link erneut öffnen;
   nach 5 s ohne Verbindung erscheint „Verbindung verloren“. Der Timer läuft weiter, die Timeout-Automatik spielt.

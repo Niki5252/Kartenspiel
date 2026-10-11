@@ -27,7 +27,7 @@ function viewFor(state: MatchState, viewerSeat: number, hostSeat = 0): RoomView 
     myPlayerId: `id-${viewerSeat}`,
     players,
     seats: players.map((p) => p.id),
-    countdownEndsAt: null,
+    seatPlan: null, countdownEndsAt: null,
     startBlockers: [],
     match: projectMatchView(state, viewerSeat),
     isDevRoom: false,

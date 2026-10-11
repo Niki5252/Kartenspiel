@@ -26,6 +26,7 @@ export const schemas = {
   ]),
   devCreate: z.object({ playerCount, botCount: z.number().int().min(0).max(3), autoReady: z.boolean(), hostName: playerName.optional() }),
   devSetBot: z.object({ playerId: z.string().min(1).max(64), isBot: z.boolean() }),
+  devAssignSeat: z.object({ playerId: z.string().min(1).max(64), seat: z.number().int().min(0).max(3) }),
 };
 
 export function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, data: unknown): T {

@@ -157,4 +157,5 @@ export const devApi = {
       socket.emit('dev:createTestRoom', { playerCount, botCount, autoReady, ...(hostName ? { hostName } : {}) }, ack),
     ),
   setBot: (playerId: string, isBot: boolean) => request<undefined>((ack) => socket.emit('dev:setBot', { playerId, isBot }, ack)),
+  assignSeat: (playerId: string, seat: number) => request<undefined>((ack) => socket.emit('dev:assignSeat', { playerId, seat }, ack)),
 };

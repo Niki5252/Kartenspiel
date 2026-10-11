@@ -15,7 +15,8 @@
     "start": "npm run start -w @orlan/server",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p packages/game && tsc -p packages/protocol && tsc -p apps/server && tsc -p apps/web"
+    "typecheck": "tsc -p packages/game && tsc -p packages/protocol && tsc -p apps/server && tsc -p apps/web",
+    "check:layout": "node scripts/check-layout.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

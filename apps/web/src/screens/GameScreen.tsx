@@ -1,6 +1,6 @@
 import { type Card, type CardId, findCaptureOptions, sortTable } from '@orlan/game';
 import type { RoomView } from '@orlan/protocol';
-import { useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { CutAnimation, ShuffleAnimation } from '../anim/DeckAnimations';
 import { FlyLayer } from '../anim/FlyLayer';
 import { syncedDelay, useMountElapsed, usePhaseElapsed } from '../anim/phaseClock';
@@ -15,6 +15,9 @@ import { SeatBadge } from '../components/SeatBadge';
 import { CardLabel, CardList } from '../components/CardLabel';
 import { PhaseTimer } from '../components/TimerBar';
 import { captureSelectionState, toggleCaptureCard } from '../lib/captureSelection';
+import { capturedPiles, pileAtSeat } from '../lib/piles';
+import { fitTableCards } from '../lib/tableFit';
+import { useElementSize } from '../lib/useElementSize';
 import { timerDisplay } from '../lib/timerDisplay';
 import { useConfirm } from '../components/useConfirm';
 import { lastCardLabel, playerAtSeat, seatDisplays, showEmptyTableHint } from '../lib/display';
@@ -108,6 +111,7 @@ export function GameScreen({ view }: { view: RoomView }) {
     });
 
   const seats = seatDisplays(view);
+  const piles = capturedPiles(view);
   const mySeatDisplay = seats.find((s) => s.isMe);
 
   // Animationen: reine Darstellung des bestätigten Serverzustands, synchronisiert über die Serverzeit.
@@ -117,6 +121,11 @@ export function GameScreen({ view }: { view: RoomView }) {
   const mountElapsed = useMountElapsed(round.phaseStartedAt);
   const shown = (at: number | undefined) => at === undefined || elapsed >= at;
   const hiddenAfter = (at: number | undefined) => at !== undefined && elapsed >= at;
+  // Tischkarten passen immer vollständig in ihre eigene Fläche (Größe aus gemessenem Platz berechnet).
+  const tableRef = useRef<HTMLDivElement>(null);
+  const tableSize = useElementSize(tableRef);
+  const tableFit = fitTableCards({ width: tableSize.width, height: tableSize.height, count: vis.table.length });
+  const tableStyle = { '--table-w': `${tableFit.cardWidth}px` } as CSSProperties;
   const liftDelay = syncedDelay(moveTimeline(match.timings.moveAnimationMs).flyInEnd, mountElapsed);
 
   return (
@@ -164,11 +173,13 @@ export function GameScreen({ view }: { view: RoomView }) {
               display={s}
               handCount={shown(vis.handAppearAt[s.seat]) ? (round.handCounts[s.seat] ?? 0) : 0}
               chipVisible={shown(vis.chipAppearAt)}
+              pile={pileAtSeat(piles, s.seat)}
               isActive={isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, s.seat)}
             />
           ))}
 
-        <section className="center">
+        <section className={`center ${myPending ? 'center--choosing' : ''}`}>
+          <div className="center__body">
           <div className="center__timer">{timerInfo && !myTurnTimer && <PhaseTimer view={view} prominent={timerInfo.isMine} />}</div>
 
           <div className={`center__status ${myPending ? 'is-collapsed' : ''}`} aria-live="polite">
@@ -195,7 +206,7 @@ export function GameScreen({ view }: { view: RoomView }) {
             {(round.phase === 'moveAnimation' || round.phase === 'turn') && moveText && <span>{moveText}</span>}
           </div>
 
-          <div className={`center__deck ${myPending ? 'is-collapsed' : ''}`}>
+          <div className={`center__deck ${myPending || iCut ? 'is-collapsed' : ''}`}>
             {round.phase === 'shuffling' ? (
               <ShuffleAnimation key={round.phaseStartedAt} phaseStartedAt={round.phaseStartedAt} durationMs={match.timings.shuffleMs} />
             ) : round.phase === 'cutReveal' && round.cut ? (
@@ -222,6 +233,11 @@ export function GameScreen({ view }: { view: RoomView }) {
                 </span>
               </div>
             )}
+            <div className={`play-slot ${myPending ? 'is-collapsed' : ''}`} data-anchor={myPending ? undefined : anchors.slot}>
+              {round.phase === 'choosingCapture' && round.pending && !myPending && (
+                <PlayingCard card={round.pending.card} className={shown(vis.slotAppearAt) ? '' : 'is-hidden'} />
+              )}
+            </div>
           </div>
 
           {iCut && <CutPicker deckCount={round.deckCount} onConfirm={(index) => void call(() => api.gameAction({ type: 'cut', index }))} />}
@@ -253,7 +269,7 @@ export function GameScreen({ view }: { view: RoomView }) {
                   <span data-anchor={anchors.slot}>
                     <CardLabel card={myPending.card} />
                   </span>{' '}
-                  gespielt – wähle deine Aufnahme:
+                  gespielt<span className="capture-choice__hint"> – wähle deine Aufnahme</span>:
                 </p>
                 <div className="capture-options">
                   {myPending.options.map((opt) => {
@@ -299,13 +315,8 @@ export function GameScreen({ view }: { view: RoomView }) {
             )}
 
 
-          <div className={`play-slot ${myPending ? 'is-collapsed' : ''}`} data-anchor={myPending ? undefined : anchors.slot}>
-            {round.phase === 'choosingCapture' && round.pending && !myPending && (
-              <PlayingCard card={round.pending.card} className={shown(vis.slotAppearAt) ? '' : 'is-hidden'} />
-            )}
-          </div>
-
-          <div className="table-cards" aria-label="Tischkarten" data-anchor={anchors.table}>
+          <div className={`table-zone ${round.dealsDone === 0 && vis.table.length === 0 ? 'table-zone--idle' : ''}`} ref={tableRef}>
+          <div className="table-cards" aria-label="Tischkarten" data-anchor={anchors.table} data-fits={tableFit.fits} style={tableStyle}>
             {vis.table.map((card) => (
               <PlayingCard
                 key={card.id}
@@ -328,11 +339,15 @@ export function GameScreen({ view }: { view: RoomView }) {
             ))}
             {vis.table.length === 0 && showEmptyTableHint(view) && <span className="muted">Tisch ist leer</span>}
           </div>
+          </div>
+          </div>
         </section>
 
         {mySeat !== null && (
           <section data-anchor={anchors.seat(mySeat)} className={`me ${isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, mySeat) ? 'is-active' : ''}`}>
-            {mySeatDisplay && <SeatBadge display={mySeatDisplay} handCount={myHand.length} chipVisible={shown(vis.chipAppearAt)} isActive={false} />}
+            {mySeatDisplay && (
+              <SeatBadge display={mySeatDisplay} handCount={myHand.length} chipVisible={shown(vis.chipAppearAt)} pile={pileAtSeat(piles, mySeat)} isActive={false} />
+            )}
 
             {myTurnTimer && <PhaseTimer view={view} prominent />}
 

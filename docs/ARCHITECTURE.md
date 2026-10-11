@@ -102,3 +102,16 @@ Animationen sind **reine Darstellung** des bereits bestätigten Serverzustands.
 - `captureSelection` (rein, getestet): legale Karten hervorheben, andere abdunkeln, Teilsumme anzeigen,
   „Nehmen“ erst bei exakt einer legalen Kombination. Die Optionen selbst kommen vom Server.
 - `CardLabel`/`CardList`: Karten in Texten als kleine Karten mit hellem Grund – ♥/♦ rot, ♣/♠ schwarz.
+
+## Tischzone, Kartenhaufen, Dev-Sitzplan
+
+- **Tischzone (Safe Area):** `.center` ist ein eigener Größen-Container. Deck-Zeile und Animationen skalieren mit seiner
+  Höhe (Container-Queries); die Tischkarten bekommen den Restplatz (`.table-zone`). `lib/tableFit.ts` berechnet aus der
+  gemessenen Fläche (ResizeObserver) die größte Kartengröße, bei der alle Karten inkl. Anhebe-Reserve vollständig
+  passen. Kein Abschneiden durch `overflow`. Browser-Prüfung: `npm run check:layout`.
+- **Gesammelte Haufen:** `lib/piles.ts` – Dicke wächst mit der Kartenanzahl (je 4 Karten eine Lage, keine Zahl).
+  2/3 Spieler: ein Haufen pro Spieler an dessen Sitz; 4 Spieler: zwei Team-Haufen (Team 1 an Sitz 1, Team 2 an Sitz 2,
+  `TEAM_PILE_SEAT`). Aufgenommene Karten fliegen zum jeweiligen Haufen.
+- **Dev-Sitzplan (nur Testraum, 4 Spieler):** `placePlayerOnSeat`/`isValidSeatPlan` (rein, getestet). Das Team folgt
+  dem Sitz (Sitz 1+3 = Team 1, Sitz 2+4 = Team 2), belegte Sitze werden getauscht – ungültige Kombinationen sind
+  ausgeschlossen. Ein vollständiger Plan wird beim Matchstart von `assignSeats` übernommen.

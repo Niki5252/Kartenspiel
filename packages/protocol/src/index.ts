@@ -33,6 +33,8 @@ export interface RoomView {
   players: PlayerPublic[];
   /** Sitz -> Spieler, sobald ein Match läuft. */
   seats: PlayerId[] | null;
+  /** Nur Testraum mit 4 Spielern: gewählte Sitzbelegung für den nächsten Matchstart. */
+  seatPlan: (PlayerId | null)[] | null;
   countdownEndsAt: number | null;
   startBlockers: string[];
   match: MatchView | null;
@@ -88,6 +90,7 @@ export interface ClientToServerEvents {
     ack: Ack<DevTestRoom>,
   ) => void;
   'dev:setBot': (payload: { playerId: PlayerId; isBot: boolean }, ack: Ack) => void;
+  'dev:assignSeat': (payload: { playerId: PlayerId; seat: SeatIndex }, ack: Ack) => void;
 }
 
 export interface ServerToClientEvents {

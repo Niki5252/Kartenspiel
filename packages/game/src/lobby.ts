@@ -52,8 +52,15 @@ export function startBlockers(playerCount: PlayerCount, players: readonly LobbyP
  *   innerhalb eines Teams sitzt der Host bzw. der zuerst Beigetretene auf dem kleineren Sitz.
  * `players` muss in Beitrittsreihenfolge übergeben werden.
  */
-export function assignSeats(playerCount: PlayerCount, players: readonly LobbyPlayer[], hostId: PlayerId): PlayerId[] {
+export function assignSeats(
+  playerCount: PlayerCount,
+  players: readonly LobbyPlayer[],
+  hostId: PlayerId,
+  preferred?: readonly (PlayerId | null)[] | null,
+): PlayerId[] {
   if (players.length !== playerCount) throw new Error('assignSeats: falsche Spielerzahl');
+  // Testmodus: gezielte Belegung, sofern vollständig und gültig (Teamkollegen vis-à-vis).
+  if (preferred && isValidSeatPlan(playerCount, players, preferred)) return preferred.map((id) => id as PlayerId);
   const ordered = [...players].sort((a, b) => Number(b.id === hostId) - Number(a.id === hostId));
 
   if (!requiresTeams(playerCount)) return ordered.map((p) => p.id);
@@ -68,4 +75,72 @@ export function assignSeats(playerCount: PlayerCount, players: readonly LobbyPla
     });
   }
   return seats;
+}
+
+// ---------------------------------------------------------------------------
+// Gezielte Sitzbelegung (Testmodus, 4 Spieler)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ein Sitzplan ist gültig, wenn jeder Sitz genau einen Spieler hat, kein Spieler doppelt sitzt
+ * und jeder Spieler im Team seines Sitzes ist (Team 1 = Sitze 0+2, Team 2 = Sitze 1+3 -> vis-à-vis).
+ */
+export function isValidSeatPlan(playerCount: PlayerCount, players: readonly LobbyPlayer[], plan: readonly (PlayerId | null)[]): boolean {
+  if (plan.length !== playerCount || plan.some((id) => id === null)) return false;
+  const ids = new Set(plan);
+  if (ids.size !== playerCount) return false;
+  return plan.every((id, seat) => {
+    const p = players.find((x) => x.id === id);
+    if (!p) return false;
+    return !requiresTeams(playerCount) || p.team === teamOfSeat(seat);
+  });
+}
+
+export interface SeatPlanResult {
+  plan: (PlayerId | null)[];
+  /** Neue Teamzuordnung aller betroffenen Spieler (Team ergibt sich aus dem Sitz). */
+  teams: Record<PlayerId, TeamNumber | null>;
+}
+
+/**
+ * Setzt `playerId` auf `seat`. Ist der Sitz belegt, tauschen beide Spieler die Plätze.
+ * Das Team folgt immer dem Sitz, dadurch sind ungültige Kombinationen ausgeschlossen.
+ * Spieler ohne Sitz, deren Team dadurch überfüllt wäre, verlieren ihre Teamzuordnung.
+ */
+export function placePlayerOnSeat(
+  playerCount: PlayerCount,
+  players: readonly LobbyPlayer[],
+  plan: readonly (PlayerId | null)[] | null,
+  playerId: PlayerId,
+  seat: SeatIndex,
+): SeatPlanResult {
+  if (!requiresTeams(playerCount)) throw new Error('Sitzwahl nur bei 4 Spielern');
+  if (!Number.isInteger(seat) || seat < 0 || seat >= playerCount) throw new Error('Ungültiger Sitz');
+  if (!players.some((p) => p.id === playerId)) throw new Error('Spieler nicht gefunden');
+  const next: (PlayerId | null)[] = plan && plan.length === playerCount ? [...plan] : new Array(playerCount).fill(null);
+  const from = next.indexOf(playerId);
+  const occupant = next[seat] ?? null;
+  next[seat] = playerId;
+  if (from >= 0 && from !== seat) next[from] = occupant; // Tausch
+  else if (occupant && occupant !== playerId) {
+    // Verdrängter Spieler ohne bisherigen Sitz: bekommt einen freien Sitz seines bisherigen Teams oder keinen.
+    const free = next.findIndex((id, s) => id === null && s !== seat);
+    if (free >= 0) next[free] = occupant;
+  }
+  const teams: Record<PlayerId, TeamNumber | null> = {};
+  for (const p of players) {
+    const s = next.indexOf(p.id);
+    teams[p.id] = s >= 0 ? teamOfSeat(s) : p.team;
+  }
+  // Teamgröße für Spieler ohne Sitz begrenzen
+  for (const team of [1, 2] as const) {
+    const seated = next.filter((id, s) => id !== null && teamOfSeat(s) === team).length;
+    let room = MAX_TEAM_SIZE - seated;
+    for (const p of players) {
+      if (next.includes(p.id) || teams[p.id] !== team) continue;
+      if (room > 0) room--;
+      else teams[p.id] = null;
+    }
+  }
+  return { plan: next, teams };
 }

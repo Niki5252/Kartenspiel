@@ -187,8 +187,8 @@ export function attachGameServer(io: GameServer, config: ServerConfig): RoomMana
         players.push(room.addPlayer(TEST_PLAYER_NAMES[i]!, { isBot: i >= playerCount - botCount }));
       }
       players.forEach((p, i) => {
-        // Team 1: P1 + P3, Team 2: P2 + P4 (sitzen dadurch vis-à-vis)
-        if (playerCount === 4) room.setTeam(p.id, i % 2 === 0 ? 1 : 2);
+        // Standard-Sitzplan: P1..P4 auf Sitz 1..4 -> Team 1: P1 + P3, Team 2: P2 + P4 (vis-à-vis)
+        if (playerCount === 4) room.assignDevSeat(p.id, i);
       });
       players.forEach((p) => {
         if (p.isBot || autoReady) room.setReady(p.id, true);
@@ -204,6 +204,14 @@ export function attachGameServer(io: GameServer, config: ServerConfig): RoomMana
       const { playerId, isBot } = parse(schemas.devSetBot, payload);
       const { room } = current();
       room.setBot(playerId, isBot);
+      return undefined;
+    });
+
+    handle(socket, 'dev:assignSeat', (payload) => {
+      requireDev();
+      const { playerId, seat } = parse(schemas.devAssignSeat, payload);
+      const { room } = current();
+      room.assignDevSeat(playerId, seat);
       return undefined;
     });
 

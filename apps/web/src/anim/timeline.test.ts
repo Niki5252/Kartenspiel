@@ -34,7 +34,7 @@ function roomView(state: MatchState, viewerSeat: number | null): RoomView {
   }));
   return {
     code: 'ABC234', maxPlayers: n, status: 'playing', hostId: 'p0', myPlayerId: viewerSeat === null ? 'x' : `p${viewerSeat}`,
-    players, seats: players.map((p) => p.id), countdownEndsAt: null, startBlockers: [],
+    players, seats: players.map((p) => p.id), seatPlan: null, countdownEndsAt: null, startBlockers: [],
     match: projectMatchView(state, viewerSeat), isDevRoom: false, serverNow: 0, notice: null,
   };
 }
@@ -152,7 +152,7 @@ describe('Zeitpläne', () => {
     const flights = planFlights(view);
     expect(flights.map((f) => f.card?.id)).toEqual(['H2', 'S9']);
     expect(flightsEnd(flights)).toBe(r.state.timings.moveAnimationMs);
-    expect(flights[0]!.waypoints.at(-1)!.anchor).toBe('seat-1'); // zum Spieler, der aufgenommen hat
+    expect(flights[0]!.waypoints.at(-1)!.anchor).toBe('pile-seat1'); // zum Haufen des Spielers, der aufgenommen hat
   });
 
   it('Dealer-Chip wandert vom vorherigen Dealer (links) zum neuen Dealer', () => {

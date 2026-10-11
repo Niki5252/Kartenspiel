@@ -27,7 +27,20 @@ function build(scenario: string, playerCount: 2 | 3 | 4): RoomView {
   r.hands = Array.from({ length: playerCount }, () => cards('SK DQ C10'));
   r.hands[0] = cards('D2 S10 HK CQ');
   r.table = sortTable(cards('H9 C9 C6 D3 H5 S4 SQ'));
+  // Gesammelte Karten je Seite (unterschiedlich viele, damit die Haufen-Dicke sichtbar ist)
+  const pool = cards('C2 C3 D9 D10 DJ DK H2 H10 HJ HQ S2 S5 S9 SJ CJ CK S3 S6 S7 S8 H3 H6 H7 H8 C4 C5 C7 C8 D5 D6 D7 D8');
+  const amounts = [22, 3, 9, 0];
+  let offset = 0;
+  state.sides.forEach((side, i) => {
+    const n = Math.min(amounts[i] ?? 0, pool.length - offset);
+    r.captured[side.id] = pool.slice(offset, offset + n);
+    offset += n;
+  });
   switch (scenario) {
+    case 'fulltable':
+      setTurn(0);
+      r.table = sortTable(cards('HA SA C3 D4 H5 C6 S7 D8 H10 CQ DK SK'));
+      break;
     case 'capture':
       setTurn(0);
       r.phase = 'choosingCapture';
@@ -68,7 +81,7 @@ function toView(state: MatchState, viewerSeat: number): RoomView {
   }));
   return {
     code: 'DEVUI1', maxPlayers: state.playerCount, status: 'playing', hostId: 'p0', myPlayerId: `p${viewerSeat}`, players,
-    seats: players.map((p) => p.id), countdownEndsAt: null, startBlockers: [], match: projectMatchView(state, viewerSeat),
+    seats: players.map((p) => p.id), seatPlan: null, countdownEndsAt: null, startBlockers: [], match: projectMatchView(state, viewerSeat),
     isDevRoom: true, serverNow: serverNow(), notice: null,
   };
 }

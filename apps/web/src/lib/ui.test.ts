@@ -22,7 +22,7 @@ function view(viewerSeat: number, mutate: (s: ReturnType<typeof createMatch>['st
   }));
   return {
     code: 'ABC234', maxPlayers: 2, status: 'playing', hostId: 'p0', myPlayerId: `p${viewerSeat}`, players,
-    seats: ['p0', 'p1'], countdownEndsAt: null, startBlockers: [], match: projectMatchView(state, viewerSeat),
+    seats: ['p0', 'p1'], seatPlan: null, countdownEndsAt: null, startBlockers: [], match: projectMatchView(state, viewerSeat),
     isDevRoom: false, serverNow: 0, notice: null,
   };
 }

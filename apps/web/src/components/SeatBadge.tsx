@@ -1,4 +1,6 @@
 import type { SeatDisplay } from '../lib/display';
+import type { PileDisplay } from '../lib/piles';
+import { CapturedPile } from './CapturedPile';
 import { CardBack } from './PlayingCard';
 
 interface Props {
@@ -7,6 +9,8 @@ interface Props {
   isActive: boolean;
   /** false, solange der Dealer-Chip noch zum neuen Dealer fliegt. */
   chipVisible?: boolean;
+  /** Gesammelter Kartenhaufen, der an diesem Sitz liegt (bei 4 Spielern nur an zwei Sitzen). */
+  pile?: PileDisplay | null;
 }
 
 /**
@@ -14,7 +18,7 @@ interface Props {
  * Zeile 1: der echte Spielername (bei Bedarf gekürzt). Zeile 2: Rollen-Badges (Dealer, Host, Team, Verbindung).
  * Die Badges stehen getrennt vom Namen, damit sie die Position nicht verschieben.
  */
-export function SeatBadge({ display, handCount, isActive, chipVisible = true }: Props) {
+export function SeatBadge({ display, handCount, isActive, chipVisible = true, pile = null }: Props) {
   const { name, position, isMe, roles, team, connectionLabel } = display;
   return (
     <div data-anchor={isMe ? undefined : `seat-${display.seat}`} className={`seat seat--${position} ${isActive ? 'is-active' : ''} ${isMe ? 'is-me' : ''} ${team ? `seat--team${team}` : ''}`}>
@@ -32,13 +36,16 @@ export function SeatBadge({ display, handCount, isActive, chipVisible = true }: 
         {team && <span className="tag">Team {team}</span>}
         {connectionLabel && <span className="tag tag--warn">{connectionLabel}</span>}
       </span>
-      {!isMe && (
-        <div className="seat__hand" aria-label={`${handCount} Handkarten`}>
-          {Array.from({ length: handCount }, (_, i) => (
-            <CardBack key={i} size="xs" />
-          ))}
-        </div>
-      )}
+      <div className="seat__cards">
+        {!isMe && (
+          <div className="seat__hand" aria-label={`${handCount} Handkarten`}>
+            {Array.from({ length: handCount }, (_, i) => (
+              <CardBack key={i} size="xs" />
+            ))}
+          </div>
+        )}
+        {pile && <CapturedPile pile={pile} />}
+      </div>
     </div>
   );
 }

@@ -6,7 +6,7 @@
  * Reconnect startet die Darstellung an der richtigen Stelle bzw. zeigt direkt den Endzustand.
  * Nichts hier verändert oder beeinflusst den Spielzustand.
  */
-import { type Card, type PlayerCount, type SeatIndex, dealingOrder, sortTable } from '@orlan/game';
+import { type Card, type PlayerCount, type SeatIndex, dealingOrder, sideIdOfSeat, sortTable } from '@orlan/game';
 import type { RoomView } from '@orlan/protocol';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +104,7 @@ export const anchors = {
   seat: (seat: SeatIndex) => `seat-${seat}`,
   chip: (seat: SeatIndex) => `chip-${seat}`,
   tableCard: (id: string) => `tcard-${id}`,
+  pile: (sideId: string) => `pile-${sideId}`,
   deck: 'deck',
   slot: 'slot',
   table: 'table',
@@ -166,7 +167,8 @@ export function planFlights(view: RoomView): Flight[] {
       if (!move) return [];
       const t = moveTimeline(match.timings.moveAnimationMs);
       const start = move.viaChoice ? anchors.slot : anchors.seat(move.seat);
-      const collector = anchors.seat(move.seat);
+      // Aufgenommene Karten fliegen zum Haufen des Spielers bzw. Teams.
+      const collector = anchors.pile(sideIdOfSeat(move.seat, n));
       if (move.captured.length === 0) {
         // Fall A: Karte fliegt in die Mitte und wird dann sortiert in den Tisch eingereiht.
         return [

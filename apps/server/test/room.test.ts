@@ -488,3 +488,69 @@ describe('Reconnect während einer Animation', () => {
     expect(room.match!.round.phase).toBe('turn');
   });
 });
+
+describe('Testmodus: gezielte Team-/Sitzplatzbelegung (4 Spieler)', () => {
+  function devRoom() {
+    const ctx = makeRoom(4, true);
+    const ps = ['Nikola', 'P2', 'P3', 'P4'].map((n) => ctx.room.addPlayer(n));
+    return { ...ctx, ps };
+  }
+
+  it('gewählte Belegung wird beim Matchstart verwendet, Teamkollegen sitzen gegenüber', () => {
+    const { room, clock, ps } = devRoom();
+    const [a, b, c, d] = ps.map((p) => p.id) as [string, string, string, string];
+    // Wunsch: Nikola + P4 = Team 1, P2 + P3 = Team 2; P3 auf Sitz 2 (rechts von Sitz 1)
+    room.assignDevSeat(a, 0);
+    room.assignDevSeat(c, 1);
+    room.assignDevSeat(d, 2);
+    room.assignDevSeat(b, 3);
+    expect(room.viewFor(a).seatPlan).toEqual([a, c, d, b]);
+    expect(room.players.map((p) => [p.name, p.team])).toEqual([['Nikola', 1], ['P2', 2], ['P3', 2], ['P4', 1]]);
+    for (const p of ps) room.setReady(p.id, true);
+    clock.advance(3000);
+    expect(room.status).toBe('playing');
+    expect(room.seats).toEqual([a, c, d, b]);
+    // vis-à-vis: Sitz 0/2 und 1/3 jeweils gleiches Team
+    const team = (id: string) => room.getPlayer(id)!.team;
+    expect(team(room.seats![0]!)).toBe(team(room.seats![2]!));
+    expect(team(room.seats![1]!)).toBe(team(room.seats![3]!));
+    // Erster Dealer bleibt der Host
+    expect(room.match!.round.dealerSeat).toBe(room.seats!.indexOf(a));
+    // Jeder Client sieht sich selbst unten (eigener Sitz in seiner Sicht)
+    for (const p of ps) expect(room.viewFor(p.id).match!.mySeat).toBe(room.seats!.indexOf(p.id));
+  });
+
+  it('Tausch statt Doppelbelegung; Bereit wird zurückgesetzt', () => {
+    const { room, ps } = devRoom();
+    ps.forEach((p, i) => room.assignDevSeat(p.id, i));
+    for (const p of ps) room.setReady(p.id, true);
+    expect(room.status).toBe('countdown');
+    room.assignDevSeat(ps[3]!.id, 0); // P4 auf Sitz 1 -> Nikola wechselt auf Sitz 4
+    expect(room.seatPlan).toEqual([ps[3]!.id, ps[1]!.id, ps[2]!.id, ps[0]!.id]);
+    expect(room.status).toBe('lobby'); // Countdown abgebrochen, weil nicht mehr alle bereit
+    expect(room.getPlayer(ps[0]!.id)!.ready).toBe(false);
+  });
+
+  it('ungültige Nutzung wird verhindert', () => {
+    const { room, clock, ps } = devRoom();
+    expect(() => room.assignDevSeat(ps[0]!.id, 4)).toThrow(RoomError);
+    expect(() => room.assignDevSeat('unbekannt', 0)).toThrow(RoomError);
+    const normal = makeRoom(4, false);
+    const x = normal.room.addPlayer('X');
+    expect(() => normal.room.assignDevSeat(x.id, 0)).toThrow('Development');
+    const three = makeRoom(3, true);
+    const y = three.room.addPlayer('Y');
+    expect(() => three.room.assignDevSeat(y.id, 0)).toThrow('4 Spielern');
+    ps.forEach((p, i) => room.assignDevSeat(p.id, i));
+    for (const p of ps) room.setReady(p.id, true);
+    clock.advance(3000);
+    expect(() => room.assignDevSeat(ps[0]!.id, 1)).toThrow('läuft bereits');
+  });
+
+  it('normale Teamwahl gibt einen nicht mehr passenden Sitz frei', () => {
+    const { room, ps } = devRoom();
+    room.assignDevSeat(ps[0]!.id, 0); // Team 1
+    room.setTeam(ps[0]!.id, 2);
+    expect(room.seatPlan![0]).toBeNull();
+  });
+});

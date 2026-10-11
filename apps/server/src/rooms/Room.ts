@@ -18,6 +18,7 @@ import {
   canJoinTeam,
   canSetReady,
   createMatch,
+  placePlayerOnSeat,
   projectMatchView,
   requiresTeams,
   startBlockers,
@@ -82,6 +83,8 @@ export class Room {
   status: RoomStatus = 'lobby';
   countdownEndsAt: number | null = null;
   seats: PlayerId[] | null = null;
+  /** Nur Testraum, 4 Spieler: gezielte Sitzbelegung (Index = Sitz). */
+  seatPlan: (PlayerId | null)[] | null = null;
   match: MatchState | null = null;
   notice: string | null = null;
   lastActivityAt: number;
@@ -142,6 +145,8 @@ export class Room {
     if (!canJoinTeam(this.players, playerId, team)) throw new RoomError(`Team ${team} ist bereits voll.`);
     p.team = team;
     p.ready = false;
+    // Testraum: ein Sitz, der nicht mehr zum Team passt, wird frei.
+    if (this.seatPlan) this.seatPlan = this.seatPlan.map((id) => (id === playerId ? null : id));
     this.changed();
   }
 
@@ -181,6 +186,29 @@ export class Room {
     this.requireHost(byId);
     if (this.status !== 'finished') throw new RoomError('Das Match ist noch nicht beendet.');
     this.resetToLobby(null);
+    this.changed();
+  }
+
+  /**
+   * Testmodus (4 Spieler): Spieler gezielt auf einen Sitz setzen. Das Team folgt dem Sitz
+   * (Sitze 1+3 = Team 1, Sitze 2+4 = Team 2), daher bleiben Teamkollegen immer vis-à-vis.
+   */
+  assignDevSeat(playerId: PlayerId, seat: number): void {
+    if (!this.isDev) throw new RoomError('Nur im Development Mode.');
+    if (!requiresTeams(this.maxPlayers)) throw new RoomError('Sitzwahl gibt es nur bei 4 Spielern.');
+    this.requireLobbyPlayer(playerId);
+    if (!Number.isInteger(seat) || seat < 0 || seat >= this.maxPlayers) throw new RoomError('Ungültiger Sitz.');
+    const { plan, teams } = placePlayerOnSeat(this.maxPlayers, this.players, this.seatPlan, playerId, seat);
+    for (const p of this.players) {
+      const team = teams[p.id] ?? null;
+      const seatChanged = (this.seatPlan?.indexOf(p.id) ?? -1) !== plan.indexOf(p.id);
+      if (team !== p.team || seatChanged) {
+        p.team = team;
+        if (!p.isBot) p.ready = false;
+        else p.ready = canSetReady(this.maxPlayers, p);
+      }
+    }
+    this.seatPlan = plan;
     this.changed();
   }
 
@@ -288,6 +316,7 @@ export class Room {
         seat: this.seats ? this.seats.indexOf(p.id) : null,
       })),
       seats: this.seats ? [...this.seats] : null,
+      seatPlan: this.seatPlan ? [...this.seatPlan] : null,
       countdownEndsAt: this.countdownEndsAt,
       startBlockers: startBlockers(this.maxPlayers, this.players),
       match: this.match ? projectMatchView(this.match, seat >= 0 ? seat : null) : null,
@@ -310,6 +339,7 @@ export class Room {
 
   private removePlayer(playerId: PlayerId, reasonForPlayer: string, notice: string): void {
     this.players = this.players.filter((p) => p.id !== playerId);
+    if (this.seatPlan) this.seatPlan = this.seatPlan.map((id) => (id === playerId ? null : id));
     this.clearDisconnectTimer(playerId);
     // Ohne diesen Spieler kann ein laufendes Match nicht fortgesetzt werden.
     if (this.match) this.resetToLobby(`${notice} Das Match wurde beendet.`);
@@ -329,7 +359,7 @@ export class Room {
 
   private startMatch(): void {
     const now = this.deps.clock.now();
-    this.seats = assignSeats(this.maxPlayers, this.players, this.hostId);
+    this.seats = assignSeats(this.maxPlayers, this.players, this.hostId, this.seatPlan);
     const { state, events } = createMatch(
       { playerCount: this.maxPlayers, firstDealerSeat: this.seats.indexOf(this.hostId), timings: this.timings },
       { now, rng: this.deps.rng },
