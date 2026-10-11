@@ -16,7 +16,7 @@ import {
 } from '@orlan/game';
 import type { PlayerPublic, RoomView } from '@orlan/protocol';
 import { describe, expect, it } from 'vitest';
-import { timerWarningDelay } from '../sound/timerWarning';
+import { timerWarningDelay } from '../sound/timerWarningSchedule';
 import {
   activeFlights,
   dealPackets,

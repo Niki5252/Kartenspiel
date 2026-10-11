@@ -2,7 +2,7 @@ import type { RoomView } from '@orlan/protocol';
 import { useEffect, useRef } from 'react';
 import { serverNow } from '../net/client';
 import { soundPlayer } from './soundPlayer';
-import { timerWarningDelay } from './timerWarning';
+import { timerWarningDelay } from './timerWarningSchedule';
 
 /** Spielt einmal pro Zug einen leisen Hinweiston, wenn die eigene Zeit fast abgelaufen ist. */
 export function TimerWarning({ view }: { view: RoomView }) {
