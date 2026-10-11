@@ -152,7 +152,9 @@ export const api = {
 
 /** Nur im Development Mode verwendet. */
 export const devApi = {
-  createTestRoom: (playerCount: 2 | 3 | 4, botCount: number, autoReady: boolean) =>
-    request<import('@orlan/protocol').DevTestRoom>((ack) => socket.emit('dev:createTestRoom', { playerCount, botCount, autoReady }, ack)),
+  createTestRoom: (playerCount: 2 | 3 | 4, botCount: number, autoReady: boolean, hostName?: string) =>
+    request<import('@orlan/protocol').DevTestRoom>((ack) =>
+      socket.emit('dev:createTestRoom', { playerCount, botCount, autoReady, ...(hostName ? { hostName } : {}) }, ack),
+    ),
   setBot: (playerId: string, isBot: boolean) => request<undefined>((ack) => socket.emit('dev:setBot', { playerId, isBot }, ack)),
 };

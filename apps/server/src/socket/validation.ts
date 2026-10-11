@@ -24,7 +24,7 @@ export const schemas = {
     z.object({ type: z.literal('playCard'), cardId }),
     z.object({ type: z.literal('chooseCapture'), cardIds: z.array(cardId).max(52) }),
   ]),
-  devCreate: z.object({ playerCount, botCount: z.number().int().min(0).max(3), autoReady: z.boolean() }),
+  devCreate: z.object({ playerCount, botCount: z.number().int().min(0).max(3), autoReady: z.boolean(), hostName: playerName.optional() }),
   devSetBot: z.object({ playerId: z.string().min(1).max(64), isBot: z.boolean() }),
 };
 

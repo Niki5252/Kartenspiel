@@ -316,16 +316,29 @@ button { font: inherit; color: inherit; }
 @keyframes active-glow { 50% { box-shadow: 0 0 34px rgba(226, 193, 105, 0.55); } }
 .seat--team1 .seat__name { border-bottom: 2px solid var(--team1); }
 .seat--team2 .seat__name { border-bottom: 2px solid var(--team2); }
-.seat__badge { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
-.seat__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
-.seat--left .seat__name, .seat--right .seat__name { white-space: normal; overflow-wrap: anywhere; text-align: center; font-size: 0.85rem; }
+.seat__name {
+  font-weight: 600; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;
+}
+.seat__you { font-weight: 400; color: var(--muted); font-size: 0.85em; }
+/* Rollenzeile mit fester Höhe: Dealer-Chip/Host-Badge verschieben die Sitzposition nicht */
+.seat__roles {
+  display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap;
+  min-height: 20px; max-width: 100%;
+}
+.seat__roles .tag { margin-left: 0; }
+.seat--left .seat__name, .seat--right .seat__name { font-size: 0.85rem; }
+/* 3 Spieler: Gegner klar oben links / oben rechts, gleich breit und symmetrisch */
+.game--3p .seat--topLeft, .game--3p .seat--topRight { width: min(100%, 220px); }
+.game--3p .seat--topLeft { justify-self: start; }
+.game--3p .seat--topRight { justify-self: end; }
 .seat__hand { display: flex; gap: 2px; }
 .seat--left .seat__hand, .seat--right .seat__hand { flex-direction: column; }
 .seat--left .seat__hand .card--xs, .seat--right .seat__hand .card--xs { width: 16px; height: 11px; }
 .dealer-chip {
-  width: 24px; height: 24px; border-radius: 50%;
-  display: grid; place-items: center; font-weight: 800; font-size: 0.8rem;
-  background: #fff; color: #111; border: 3px dashed #c33;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 800; font-size: 0.7rem; line-height: 1;
+  background: #fff; color: #111; border: 2px dashed #c33;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); flex: none;
 }
 
@@ -350,7 +363,9 @@ button { font: inherit; color: inherit; }
   font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000;
 }
 .cut-card { display: flex; align-items: center; gap: 8px; }
-.cut-card small { max-width: 110px; }
+.cut-card__text { display: flex; flex-direction: column; gap: 1px; max-width: 170px; color: var(--muted); line-height: 1.25; }
+.cut-card__text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cut-card__auto { font-size: 0.68rem; opacity: 0.8; }
 
 .table-cards {
   display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-content: center;

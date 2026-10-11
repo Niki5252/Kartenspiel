@@ -8,7 +8,7 @@ import { ScoreBar } from '../components/ScoreBar';
 import { SeatBadge } from '../components/SeatBadge';
 import { TimerBar } from '../components/TimerBar';
 import { useConfirm } from '../components/useConfirm';
-import { describeCards, playerAtSeat, shortCard } from '../lib/display';
+import { describeCards, lastCardLabel, playerAtSeat, seatDisplays, shortCard, showEmptyTableHint } from '../lib/display';
 import { api } from '../net/client';
 
 /** Richtung (in % der Tischmitte), aus der Karten eines Sitzes kommen bzw. wohin sie gehen. */
@@ -109,7 +109,8 @@ export function GameScreen({ view }: { view: RoomView }) {
       action: () => void call(() => api.kick(playerId)),
     });
 
-  const seatOrder = Array.from({ length: n }, (_, seat) => seat);
+  const seats = seatDisplays(view);
+  const mySeatDisplay = seats.find((s) => s.isMe);
   const inPlayZone = round.phase === 'moveAnimation' ? lastMove : null;
   // Fall A (keine Aufnahme): Karte wird erst nach der Animation sortiert am Tisch angezeigt.
   const animatingToTable = inPlayZone && inPlayZone.captured.length === 0 ? inPlayZone.card.id : null;
@@ -122,7 +123,9 @@ export function GameScreen({ view }: { view: RoomView }) {
         <div className="game__menu">
           {isHost && (
             <details className="host-menu">
-              <summary className="btn btn--ghost btn--sm">Host</summary>
+              <summary className="btn btn--ghost btn--sm" aria-label="Host-Menü">
+                ☰ Menü
+              </summary>
               <div className="host-menu__panel panel">
                 <button type="button" className="btn btn--danger btn--sm btn--block" onClick={openMenu} disabled={match.status !== 'running'}>
                   Match abbrechen
@@ -149,18 +152,14 @@ export function GameScreen({ view }: { view: RoomView }) {
       </header>
 
       <div className="table-area">
-        {seatOrder
-          .filter((seat) => seat !== mySeat)
-          .map((seat) => (
+        {seats
+          .filter((s) => !s.isMe)
+          .map((s) => (
             <SeatBadge
-              key={seat}
-              player={playerAtSeat(view, seat)}
-              position={positionOf(seat)}
-              handCount={round.handCounts[seat] ?? 0}
-              isDealer={round.dealerSeat === seat}
-              isActive={isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, seat)}
-              isMe={false}
-              team={n === 4 ? teamOfSeat(seat) : null}
+              key={s.seat}
+              display={s}
+              handCount={round.handCounts[s.seat] ?? 0}
+              isActive={isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, s.seat)}
             />
           ))}
 
@@ -203,10 +202,10 @@ export function GameScreen({ view }: { view: RoomView }) {
             {round.cut && round.deckCount > 0 && (
               <div className="cut-card">
                 <PlayingCard card={round.cut.revealedCard} size="sm" className={round.phase === 'choosingDealOrder' ? 'card--reveal' : ''} />
-                <small className="muted">
-                  Letzte Karte für {nameOf(round.dealerSeat)}
-                  {round.cut.auto ? ' (auto)' : ''}
-                </small>
+                <span className="cut-card__text">
+                  <small>{lastCardLabel(view)}</small>
+                  {round.cut.auto && <small className="cut-card__auto">automatisch geschnitten</small>}
+                </span>
               </div>
             )}
           </div>
@@ -259,21 +258,13 @@ export function GameScreen({ view }: { view: RoomView }) {
                 }
               />
             ))}
-            {visibleTable.length === 0 && round.dealsDone > 0 && <span className="muted">Tisch ist leer</span>}
+            {visibleTable.length === 0 && showEmptyTableHint(view) && <span className="muted">Tisch ist leer</span>}
           </div>
         </section>
 
         {mySeat !== null && (
           <section className={`me ${isSeatActive(round.phase, round.currentSeat, round.cutterSeat, round.pending?.seat ?? null, mySeat) ? 'is-active' : ''}`}>
-            <SeatBadge
-              player={playerAtSeat(view, mySeat)}
-              position="bottom"
-              handCount={myHand.length}
-              isDealer={round.dealerSeat === mySeat}
-              isActive={false}
-              isMe
-              team={n === 4 ? teamOfSeat(mySeat) : null}
-            />
+            {mySeatDisplay && <SeatBadge display={mySeatDisplay} handCount={myHand.length} isActive={false} />}
 
             {myPending?.options && (
               <div className="capture-choice">

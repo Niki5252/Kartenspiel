@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { devApi } from '../net/client';
 
 function playerUrl(room: DevTestRoom, player: DevTestPlayer, extra: Record<string, string> = {}): string {
-  const params = new URLSearchParams({ profile: player.name.replace(/\s+/g, ''), room: room.roomCode, pid: player.playerId, token: player.token, ...extra });
+  const params = new URLSearchParams({ profile: player.playerId, room: room.roomCode, pid: player.playerId, token: player.token, ...extra });
   return `/?${params.toString()}`;
 }
 
@@ -18,9 +18,16 @@ export function DevLauncher() {
   const [room, setRoom] = useState<DevTestRoom | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [split, setSplit] = useState(true);
+  const [hostName, setHostName] = useState(() => {
+    try {
+      return localStorage.getItem('orlan.playerName') ?? '';
+    } catch {
+      return '';
+    }
+  });
 
   const create = async () => {
-    const res = await devApi.createTestRoom(playerCount, Math.min(botCount, playerCount - 1), autoReady);
+    const res = await devApi.createTestRoom(playerCount, Math.min(botCount, playerCount - 1), autoReady, hostName.trim() || undefined);
     if (res.ok) {
       setRoom(res.data);
       setError(null);
@@ -59,6 +66,10 @@ export function DevLauncher() {
 
       <section className="panel">
         <h2>Testraum erstellen</h2>
+        <label className="field">
+          <span>Dein Name (Host) – weitere Testspieler heißen P2, P3, P4</span>
+          <input value={hostName} onChange={(e) => setHostName(e.target.value)} maxLength={20} placeholder="P1" />
+        </label>
         <div className="segmented">
           {([2, 3, 4] as const).map((n) => (
             <button key={n} type="button" className={`segmented__option ${playerCount === n ? 'is-active' : ''}`} onClick={() => setPlayerCount(n)}>

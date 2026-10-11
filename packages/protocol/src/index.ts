@@ -81,7 +81,10 @@ export interface ClientToServerEvents {
   'game:action': (action: ClientGameAction, ack: Ack) => void;
   'time:sync': (ack: (serverNow: number) => void) => void;
   // Nur im Development Mode verfügbar (Server lehnt sonst ab).
-  'dev:createTestRoom': (payload: { playerCount: PlayerCount; botCount: number; autoReady: boolean }, ack: Ack<DevTestRoom>) => void;
+  'dev:createTestRoom': (
+    payload: { playerCount: PlayerCount; botCount: number; autoReady: boolean; hostName?: string },
+    ack: Ack<DevTestRoom>,
+  ) => void;
   'dev:setBot': (payload: { playerId: PlayerId; isBot: boolean }, ack: Ack) => void;
 }
 

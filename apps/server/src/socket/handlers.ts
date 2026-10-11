@@ -17,7 +17,8 @@ export interface SocketData {
 export type GameServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
-const TEST_PLAYER_NAMES = ['Spieler A', 'Spieler B', 'Spieler C', 'Spieler D'];
+/** Automatisch erzeugte Testspieler. Der erste (Host) kann einen echten Namen bekommen. */
+const TEST_PLAYER_NAMES = ['P1', 'P2', 'P3', 'P4'];
 
 export function attachGameServer(io: GameServer, config: ServerConfig): RoomManager {
   /** Genau ein aktiver Socket pro Spieler (neuere Verbindung übernimmt). */
@@ -178,15 +179,15 @@ export function attachGameServer(io: GameServer, config: ServerConfig): RoomMana
     // ---------------------------------------------------------------- Dev Mode
     handle(socket, 'dev:createTestRoom', (payload): DevTestRoom => {
       requireDev();
-      const { playerCount, botCount, autoReady } = parse(schemas.devCreate, payload);
+      const { playerCount, botCount, autoReady, hostName } = parse(schemas.devCreate, payload);
       if (botCount >= playerCount) throw new RoomError('Mindestens ein Testspieler muss menschlich sein.');
-      const { room, host } = manager.createRoom({ hostName: TEST_PLAYER_NAMES[0]!, playerCount, isDev: true });
+      const { room, host } = manager.createRoom({ hostName: hostName ?? TEST_PLAYER_NAMES[0]!, playerCount, isDev: true });
       const players = [host];
       for (let i = 1; i < playerCount; i++) {
         players.push(room.addPlayer(TEST_PLAYER_NAMES[i]!, { isBot: i >= playerCount - botCount }));
       }
       players.forEach((p, i) => {
-        // Team 1: A + C, Team 2: B + D (sitzen dadurch vis-à-vis)
+        // Team 1: P1 + P3, Team 2: P2 + P4 (sitzen dadurch vis-à-vis)
         if (playerCount === 4) room.setTeam(p.id, i % 2 === 0 ? 1 : 2);
       });
       players.forEach((p) => {
