@@ -11,6 +11,8 @@ export interface SoundContext {
   timings: MatchTimings;
   /** Eigene Seite (Spieler oder Team); null für Zuschauer. */
   mySide: SideId | null;
+  /** Zeitpunkte (ms) der Austeil-Töne aus dem Animationsplan (Pakete, Tischkarten, Buben). */
+  dealSoundTimes?: number[];
 }
 
 export function soundsForEvents(events: readonly MatchEvent[], ctx: SoundContext): SoundRequest[] {
@@ -24,8 +26,12 @@ export function soundsForEvents(events: readonly MatchEvent[], ctx: SoundContext
         out.push({ name: 'cut' });
         break;
       case 'cardsDealt': {
-        const schedule = dealPacketSchedule(dealPacketCount(ctx.playerCount, e.initial), ctx.timings.dealMs);
-        for (const p of schedule) out.push({ name: 'deal', delayMs: p.startMs + p.durationMs * 0.8 });
+        if (ctx.dealSoundTimes) {
+          for (const t of ctx.dealSoundTimes) out.push({ name: 'deal', delayMs: t });
+        } else {
+          const schedule = dealPacketSchedule(dealPacketCount(ctx.playerCount, e.initial), ctx.timings.dealMs);
+          for (const p of schedule) out.push({ name: 'deal', delayMs: p.startMs + p.durationMs * 0.8 });
+        }
         break;
       }
       case 'captureChoiceRequired':

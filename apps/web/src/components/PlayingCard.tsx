@@ -1,4 +1,4 @@
-import { type Card, RANK_LABEL_DE, SUIT_SYMBOL, cardLabel, isRedSuit } from '@orlan/game';
+import { type Card, RANK_LABEL, SUIT_SYMBOL, cardLabel, isRedSuit } from '@orlan/game';
 import type { CSSProperties } from 'react';
 
 interface Props {
@@ -26,7 +26,7 @@ export function PlayingCard({ card, selected, highlighted, dimmed, size = 'md', 
     onClick ? 'card--clickable' : '',
     className,
   ].join(' ');
-  const rank = RANK_LABEL_DE[card.rank];
+  const rank = RANK_LABEL[card.rank];
   const suit = SUIT_SYMBOL[card.suit];
   const content = (
     <>

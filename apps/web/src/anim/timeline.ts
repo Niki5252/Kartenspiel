@@ -6,7 +6,7 @@
  * Reconnect startet die Darstellung an der richtigen Stelle bzw. zeigt direkt den Endzustand.
  * Nichts hier verändert oder beeinflusst den Spielzustand.
  */
-import { type Card, type PlayerCount, type SeatIndex, dealingOrder, sideIdOfSeat, sortTable } from '@orlan/game';
+import { type Card, type PlayerCount, type SeatIndex, dealingOrder, isJack, sideIdOfSeat, sortTable } from '@orlan/game';
 import type { RoomView } from '@orlan/protocol';
 
 // ---------------------------------------------------------------------------
@@ -61,22 +61,108 @@ export interface DealPacket extends PacketTiming {
   arriveMs: number;
 }
 
-/** Pakete in echter Austeilreihenfolge: rechts vom Dealer beginnend, Tisch je nach Wahl zuerst/zuletzt. */
-export function dealPackets(view: RoomView): DealPacket[] {
+/** Ein Schritt des ersten Tisch-Aufdeckens (normale Karte oder Bube). */
+export interface TableRevealStep {
+  card: Card;
+  isJack: boolean;
+  startMs: number;
+  endMs: number;
+  /** Nur Bube: Karte ist aufgedeckt und hervorgehoben. */
+  revealedMs?: number;
+  /** Nur Bube: Beginn der Bewegung ans Deckende. */
+  toDeckMs?: number;
+  /** Nur Bube: liegt jetzt unter dem Deck -> neue letzte Karte. */
+  atBottomMs?: number;
+}
+
+export interface DealPlan {
+  packets: DealPacket[];
+  steps: TableRevealStep[];
+  /** Zeitpunkte, an denen sich die unterste Deckkarte ändert (unter das Deck gelegte Buben, in Reihenfolge). */
+  bottomChanges: Array<{ at: number; card: Card }>;
+  total: number;
+}
+
+/**
+ * Austeil-Zeitplan, exakt passend zur Server-Phasendauer (dealDuration):
+ * Spielerpakete nach rechts ab dem Spieler rechts vom Dealer; beim ersten Austeilen die Tischkarten einzeln –
+ * je nach Wahl vor oder nach den Spielerpaketen. Buben bekommen einen eigenen, langsameren Schritt.
+ */
+export function dealPlan(view: RoomView): DealPlan {
   const match = view.match;
-  if (!match) return [];
+  if (!match) return { packets: [], steps: [], bottomChanges: [], total: 0 };
   const r = match.round;
-  const initial = r.dealsDone === 1;
-  const targets: DealTarget[] = dealingOrder(r.dealerSeat, match.playerCount).map((seat) => ({ kind: 'seat', seat }));
-  if (initial) {
-    if (r.dealOrder === 'tableFirst') targets.unshift({ kind: 'table' });
-    else targets.push({ kind: 'table' });
-  }
-  const schedule = dealPacketSchedule(targets.length, match.timings.dealMs);
-  return targets.map((target, i) => {
-    const t = schedule[i]!;
-    return { target, ...t, arriveMs: t.startMs + t.durationMs };
+  const t = match.timings;
+  const initial = r.dealsDone === 1 && r.initialReveal.length > 0;
+  const tableDur = initial ? r.initialReveal.reduce((d, c) => d + (isJack(c) ? t.jackRevealMs : t.tableRevealCardMs), 0) : 0;
+  const tableFirst = initial && r.dealOrder === 'tableFirst';
+  const packetOffset = tableFirst ? tableDur : 0;
+  let cursor = tableFirst ? 0 : t.dealMs;
+
+  const seats = dealingOrder(r.dealerSeat, match.playerCount);
+  const schedule = dealPacketSchedule(seats.length, t.dealMs);
+  const packets: DealPacket[] = seats.map((seat, i) => {
+    const s = schedule[i]!;
+    const startMs = s.startMs + packetOffset;
+    return { target: { kind: 'seat', seat }, startMs, durationMs: s.durationMs, arriveMs: startMs + s.durationMs };
   });
+
+  const steps: TableRevealStep[] = [];
+  const bottomChanges: Array<{ at: number; card: Card }> = [];
+  if (initial) {
+    for (const card of r.initialReveal) {
+      if (isJack(card)) {
+        const step: TableRevealStep = {
+          card,
+          isJack: true,
+          startMs: cursor,
+          revealedMs: cursor + 380,
+          toDeckMs: cursor + t.jackRevealMs - 650,
+          atBottomMs: cursor + t.jackRevealMs - 150,
+          endMs: cursor + t.jackRevealMs,
+        };
+        steps.push(step);
+        bottomChanges.push({ at: step.atBottomMs!, card });
+        cursor += t.jackRevealMs;
+      } else {
+        steps.push({ card, isJack: false, startMs: cursor, endMs: cursor + t.tableRevealCardMs });
+        cursor += t.tableRevealCardMs;
+      }
+    }
+  }
+  return { packets, steps, bottomChanges, total: t.dealMs + tableDur };
+}
+
+/** Kompatibel: nur die Pakete (Spieler). */
+export function dealPackets(view: RoomView): DealPacket[] {
+  return dealPlan(view).packets;
+}
+
+/**
+ * Tatsächliche letzte Deckkarte, wie sie zum Zeitpunkt `elapsed` angezeigt wird:
+ * während des Buben-Aufdeckens schrittweise (Schnittkarte -> Bube 1 -> Bube 2 ...), sonst der Serverzustand.
+ */
+export function visibleDeckBottom(view: RoomView, elapsed: number): Card | null {
+  const r = view.match?.round;
+  if (!r || r.deckCount === 0) return null;
+  if (r.phase === 'dealing' && r.cut) {
+    const changes = dealPlan(view).bottomChanges;
+    if (changes.length > 0) {
+      let bottom: Card = r.cut.revealedCard;
+      for (const c of changes) if (c.at <= elapsed) bottom = c.card;
+      return bottom;
+    }
+  }
+  return r.deckBottom;
+}
+
+/** Buben, deren Aufdecken bereits gezeigt wurde (für die Meldung). Bleibt im ersten Zug der Runde sichtbar. */
+export function visibleJackNotice(view: RoomView, elapsed: number): Card[] {
+  const r = view.match?.round;
+  if (!r || r.initialMovedJacks.length === 0 || r.dealsDone !== 1) return [];
+  if (r.phase === 'dealing') return dealPlan(view).steps.filter((s) => s.isJack && s.startMs <= elapsed).map((s) => s.card);
+  if (r.phase === 'turn' && r.lastMove === null) return r.initialMovedJacks;
+  return [];
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +184,8 @@ export interface Flight {
   kind: 'card' | 'packet' | 'chip';
   card?: Card;
   waypoints: Waypoint[];
+  /** Hervorgehoben (z. B. aufgedeckter Bube). */
+  highlight?: boolean;
 }
 
 export const anchors = {
@@ -137,8 +225,9 @@ export function planFlights(view: RoomView): Flight[] {
         },
       ];
     }
-    case 'dealing':
-      return dealPackets(view).map((p, i) => ({
+    case 'dealing': {
+      const plan = dealPlan(view);
+      const flights: Flight[] = plan.packets.map((p, i) => ({
         key: `${base}-packet-${i}`,
         kind: 'packet',
         waypoints: [
@@ -146,6 +235,36 @@ export function planFlights(view: RoomView): Flight[] {
           { at: p.arriveMs, anchor: p.target.kind === 'table' ? anchors.table : anchors.seat(p.target.seat), scale: 0.7, opacity: 0 },
         ],
       }));
+      for (const step of plan.steps) {
+        if (!step.isJack) {
+          // Tischkarte wird aufgedeckt und an ihren sortierten Platz gelegt.
+          flights.push({
+            key: `${base}-reveal-${step.card.id}`,
+            kind: 'card',
+            card: step.card,
+            waypoints: [
+              { at: step.startMs, anchor: anchors.deck, scale: 0.8, opacity: 1 },
+              { at: step.endMs, anchor: anchors.tableCard(step.card.id), scale: 1, opacity: 1 },
+            ],
+          });
+        } else {
+          // Bube: aufdecken, hervorheben, kurz zeigen, dann sichtbar unter das Deck legen.
+          flights.push({
+            key: `${base}-jack-${step.card.id}`,
+            kind: 'card',
+            card: step.card,
+            highlight: true,
+            waypoints: [
+              { at: step.startMs, anchor: anchors.deck, scale: 0.8, opacity: 1 },
+              { at: step.revealedMs!, anchor: anchors.slot, scale: 1.08, opacity: 1 },
+              { at: step.toDeckMs!, anchor: anchors.slot, scale: 1.08, opacity: 1 },
+              { at: step.atBottomMs!, anchor: anchors.deck, scale: 0.75, opacity: 0.15 },
+            ],
+          });
+        }
+      }
+      return flights;
+    }
     case 'choosingCapture': {
       const pending = r.pending;
       if (!pending) return [];
@@ -236,6 +355,8 @@ export interface PhaseVisibility {
   chipAppearAt: number;
   /** ms, ab wann die Karte in der Mitte (Auswahlphase) statisch sichtbar ist. */
   slotAppearAt: number;
+  /** Weitere Zeitpunkte mit Anzeigeänderung (z. B. Buben-Meldung, neue letzte Karte). */
+  extraMilestones?: number[];
 }
 
 export function phaseVisibility(view: RoomView): PhaseVisibility {
@@ -249,10 +370,10 @@ export function phaseVisibility(view: RoomView): PhaseVisibility {
   if (r.phase === 'shuffling' && r.number > 1) vis.chipAppearAt = CHIP_FLIGHT_MS;
 
   if (r.phase === 'dealing') {
-    for (const p of dealPackets(view)) {
-      if (p.target.kind === 'table') for (const c of r.table) vis.tableAppearAt[c.id] = p.arriveMs;
-      else vis.handAppearAt[p.target.seat] = p.arriveMs;
-    }
+    const plan = dealPlan(view);
+    for (const p of plan.packets) if (p.target.kind === 'seat') vis.handAppearAt[p.target.seat] = p.arriveMs;
+    for (const step of plan.steps) if (!step.isJack) vis.tableAppearAt[step.card.id] = step.endMs;
+    vis.extraMilestones = [...plan.bottomChanges.map((c) => c.at), ...plan.steps.filter((s) => s.isJack).map((s) => s.startMs)];
   }
 
   if (r.phase === 'choosingCapture') vis.slotAppearAt = t.flyInEnd;
@@ -279,6 +400,7 @@ export function visibilityMilestones(vis: PhaseVisibility): number[] {
     ...Object.values(vis.handAppearAt),
     vis.chipAppearAt,
     vis.slotAppearAt,
+    ...(vis.extraMilestones ?? []),
   ].filter((m) => m > 0);
   return [...new Set(all)].sort((a, b) => a - b);
 }

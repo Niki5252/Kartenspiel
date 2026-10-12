@@ -1,4 +1,4 @@
-import { type Card, type PlayerCount, type ScreenPosition, RANK_LABEL_DE, SUIT_SYMBOL, type SideId, cardLabel, screenPositionOf, teamOfSeat } from '@orlan/game';
+import { type Card, type PlayerCount, type ScreenPosition, RANK_LABEL, SUIT_SYMBOL, type SideId, cardLabel, screenPositionOf, teamOfSeat } from '@orlan/game';
 import type { PlayerPublic, RoomView } from '@orlan/protocol';
 
 export function playerAtSeat(view: RoomView, seat: number): PlayerPublic | undefined {
@@ -28,7 +28,7 @@ export function sideLabel(view: RoomView, sideId: SideId): string {
 }
 
 export function shortCard(card: Card): string {
-  return `${RANK_LABEL_DE[card.rank]}${SUIT_SYMBOL[card.suit]}`;
+  return `${RANK_LABEL[card.rank]}${SUIT_SYMBOL[card.suit]}`;
 }
 
 export function describeCards(cards: readonly Card[]): string {

@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 import { timerWarningDelay } from '../sound/timerWarningSchedule';
 import {
   activeFlights,
-  dealPackets,
+  dealPlan,
   flightsEnd,
   moveTimeline,
   phaseVisibility,
@@ -113,18 +113,24 @@ describe('Zeitpläne', () => {
     return r.state;
   }
 
-  it('Austeilen: 4er-Pakete nach rechts ab dem Spieler rechts vom Dealer, Tisch zuerst/zuletzt', () => {
-    const last = dealPackets(roomView(dealingState('playersFirst'), 0));
-    expect(last.map((p) => (p.target.kind === 'table' ? 'T' : p.target.seat))).toEqual([2, 3, 0, 1, 'T']);
-    const first = dealPackets(roomView(dealingState('tableFirst'), 0));
-    expect(first.map((p) => (p.target.kind === 'table' ? 'T' : p.target.seat))).toEqual(['T', 2, 3, 0, 1]);
-    // kompakt und nacheinander, alles innerhalb der Austeilphase
-    const state = dealingState('playersFirst');
-    for (let i = 1; i < last.length; i++) expect(last[i]!.startMs).toBeGreaterThan(last[i - 1]!.startMs);
-    expect(Math.max(...last.map((p) => p.arriveMs))).toBeLessThanOrEqual(state.timings.dealMs);
-    // Handkarten werden erst beim Eintreffen des eigenen Pakets sichtbar
-    const vis = phaseVisibility(roomView(state, 0));
-    expect(vis.handAppearAt[0]).toBe(last[2]!.arriveMs);
+  it('Austeilen: 4er-Pakete nach rechts ab dem Spieler rechts vom Dealer, Tischkarten einzeln zuerst/zuletzt', () => {
+    const playersFirst = dealingState('playersFirst');
+    const pf = dealPlan(roomView(playersFirst, 0));
+    expect(pf.packets.map((p) => (p.target.kind === 'seat' ? p.target.seat : 'T'))).toEqual([2, 3, 0, 1]);
+    // Spieler zuerst: Tischkarten werden nach allen Paketen aufgedeckt
+    expect(Math.min(...pf.steps.map((s) => s.startMs))).toBeGreaterThanOrEqual(Math.max(...pf.packets.map((p) => p.arriveMs)));
+    const tableFirst = dealingState('tableFirst');
+    const tf = dealPlan(roomView(tableFirst, 0));
+    expect(Math.max(...tf.steps.map((s) => s.endMs))).toBeLessThanOrEqual(Math.min(...tf.packets.map((p) => p.startMs)));
+    // genau so lang wie die Serverphase
+    for (const st of [playersFirst, tableFirst]) {
+      expect(dealPlan(roomView(st, 0)).total).toBe(st.round.deadline! - st.round.phaseStartedAt);
+    }
+    for (let i = 1; i < pf.packets.length; i++) expect(pf.packets[i]!.startMs).toBeGreaterThan(pf.packets[i - 1]!.startMs);
+    // Handkarten werden erst beim Eintreffen des eigenen Pakets sichtbar, Tischkarten erst nach ihrem Aufdecken
+    const vis = phaseVisibility(roomView(playersFirst, 0));
+    expect(vis.handAppearAt[0]).toBe(pf.packets[2]!.arriveMs);
+    for (const step of pf.steps.filter((x) => !x.isJack)) expect(vis.tableAppearAt[step.card.id]).toBe(step.endMs);
   });
 
   it('Kartenflug 0,4–0,8 s, Aufnahme gesamt 1–1,5 s', () => {

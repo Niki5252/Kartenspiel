@@ -466,7 +466,8 @@ describe('Reconnect während einer Animation', () => {
       room.markOnline(p.id);
       room.setReady(p.id, true);
     }
-    clock.advance(3000 + 1800 + 15000 + 1700 + 7000 + 1800); // bis zum ersten Zug (alles automatisch)
+    clock.advance(3000 + 1800 + 15000 + 1700 + 7000); // bis zum Austeilen (alles automatisch)
+    for (let i = 0; i < 20 && room.match!.round.phase !== 'turn'; i++) clock.advance(500); // Austeilen inkl. evtl. Buben
     expect(room.match!.round.phase).toBe('turn');
     const current = room.seats![room.match!.round.currentSeat]!;
     const other = current === a.id ? b.id : a.id;
@@ -552,5 +553,35 @@ describe('Testmodus: gezielte Team-/Sitzplatzbelegung (4 Spieler)', () => {
     room.assignDevSeat(ps[0]!.id, 0); // Team 1
     room.setTeam(ps[0]!.id, 2);
     expect(room.seatPlan![0]).toBeNull();
+  });
+});
+
+describe('Rundenauswertung: gleiche Dauer für alle, Reconnect', () => {
+  it('Reconnect während der Auswertung zeigt denselben Zustand und dieselbe Restzeit', () => {
+    const { room, clock } = makeRoom(2, true);
+    const a = room.addPlayer('A');
+    const b = room.addPlayer('B');
+    room.setBot(a.id, true);
+    room.setBot(b.id, true);
+    for (let i = 0; i < 5000 && room.match?.round.phase !== 'roundSummary'; i++) clock.advance(250);
+    expect(room.match!.round.phase).toBe('roundSummary');
+    if (room.status === 'finished') return;
+    const deadline = room.match!.round.deadline!;
+    expect(deadline - room.match!.round.phaseStartedAt).toBe(17_000);
+    room.setBot(b.id, false);
+    room.markOffline(b.id);
+    clock.advance(4000);
+    room.markOnline(b.id);
+    const va = room.viewFor(a.id);
+    const vb = room.viewFor(b.id);
+    expect(vb.match!.round.phase).toBe('roundSummary');
+    expect(vb.match!.round.deadline).toBe(deadline);
+    expect(va.match!.round.deadline).toBe(deadline);
+    expect(deadline - vb.serverNow).toBe(deadline - clock.time); // verbleibende Zeit = echte Restzeit des Servers
+    expect(deadline - vb.serverNow).toBeGreaterThan(12_000);
+    clock.advance(deadline - clock.time - 1);
+    expect(room.match!.round.phase).toBe('roundSummary');
+    clock.advance(1);
+    expect(room.match!.round.number).toBe(2);
   });
 });

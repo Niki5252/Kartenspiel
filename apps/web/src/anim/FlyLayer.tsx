@@ -69,7 +69,7 @@ export function FlyLayer({ flights, phaseStartedAt }: Props) {
   return (
     <div ref={ref} className="fly-layer" aria-hidden="true">
       {flights.map((f) => (
-        <div key={f.key} data-flight={f.key} className={`flight flight--${f.kind}`}>
+        <div key={f.key} data-flight={f.key} className={`flight flight--${f.kind} ${f.highlight ? "flight--highlight" : ""}`}>
           {f.kind === 'card' && f.card && <PlayingCard card={f.card} />}
           {f.kind === 'packet' && (
             <div className="flight__packet">

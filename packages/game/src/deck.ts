@@ -85,6 +85,8 @@ export interface TableRevealResult {
   deck: Deck;
   /** Buben, die beim Aufdecken unter das Deck geschoben wurden (in dieser Reihenfolge). */
   movedJacks: Card[];
+  /** Alle aufgedeckten Karten in Aufdeck-Reihenfolge (inkl. Buben). */
+  revealed: Card[];
 }
 
 /**
@@ -95,6 +97,7 @@ export function revealInitialTable(deck: readonly Card[], count = 4): TableRevea
   const remaining = [...deck];
   const table: Card[] = [];
   const movedJacks: Card[] = [];
+  const revealed: Card[] = [];
   // Schutz gegen Endlosschleifen (nur theoretisch möglich, wenn fast nur Buben übrig wären).
   let guard = remaining.length;
   while (table.length < count) {
@@ -102,6 +105,7 @@ export function revealInitialTable(deck: readonly Card[], count = 4): TableRevea
       throw new Error('revealInitialTable: nicht genug gültige Karten');
     }
     const card = remaining.shift() as Card;
+    revealed.push(card);
     if (isJack(card)) {
       remaining.push(card);
       movedJacks.push(card);
@@ -109,5 +113,5 @@ export function revealInitialTable(deck: readonly Card[], count = 4): TableRevea
       table.push(card);
     }
   }
-  return { table, deck: remaining, movedJacks };
+  return { table, deck: remaining, movedJacks, revealed };
 }

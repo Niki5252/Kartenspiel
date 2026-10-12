@@ -761,3 +761,34 @@ button { font: inherit; color: inherit; }
   .capture-option { min-height: 40px; padding: 4px 10px; flex: 0 1 auto; }
   .capture-choice .btn--lg { min-height: 40px; padding: 6px 12px; }
 }
+
+/* ================================================================ Buben beim ersten Tisch-Aufdecken */
+.jack-notice {
+  max-width: min(100%, 520px); margin: 0; padding: 8px 12px; border-radius: 12px;
+  background: rgba(226, 193, 105, 0.14); border: 1px solid rgba(226, 193, 105, 0.55);
+  color: var(--text); font-size: 0.9rem; line-height: 1.55; text-align: center; text-wrap: balance;
+  animation: notice-in 0.3s ease-out both;
+}
+@keyframes notice-in { from { opacity: 0; transform: translateY(-4px); } }
+@container (max-width: 330px) { .jack-notice { font-size: 0.8rem; padding: 6px 8px; } }
+.flight--highlight .card {
+  box-shadow: 0 0 0 3px var(--accent), 0 0 26px rgba(226, 193, 105, 0.8), 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+/* Letzte Karte: Text mit farbiger Mini-Karte, wechselt sichtbar, wenn ein Bube darunter gelegt wird */
+.cut-card__label { font-size: 0.82rem; color: var(--muted); }
+.cut-card__card { display: inline-block; animation: bottom-swap 0.45s ease-out; }
+.cut-card__card .mini-card { font-size: 1.05rem; }
+@keyframes bottom-swap { from { transform: scale(1.35); filter: drop-shadow(0 0 8px rgba(226, 193, 105, 0.9)); } }
+.cut-card__text { max-width: 220px; }
+
+/* Matchende: Gewinner/Verlierer */
+.summary__winner--lose { color: #ffb4a8; }
+.summary__winner { text-wrap: balance; overflow-wrap: anywhere; }
+.summary__names { display: block; font-weight: 400; color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
+/* Schmale Mitte: Deck, "Letzte Karte" und Ablageplatz bleiben in EINER Zeile */
+@container (max-width: 330px) {
+  .center__deck { flex-wrap: nowrap; gap: 8px; }
+  .cut-card__text { max-width: 112px; }
+  .cut-card__label { font-size: 0.7rem; line-height: 1.3; }
+  .cut-card__card .mini-card { font-size: 0.95rem; }
+}

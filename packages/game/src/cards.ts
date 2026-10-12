@@ -70,9 +70,9 @@ export function isSpecialCard(card: Card): boolean {
   return isClubTwo(card) || isDiamondTen(card);
 }
 
-/** Deutsche Kurzbezeichnungen für die Anzeige. */
-export const RANK_LABEL_DE: Record<Rank, string> = {
-  1: 'A', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10', 11: 'B', 12: 'D', 13: 'K',
+/** Sichtbare Kurzbezeichnungen (international üblich): Bube = J, Dame = Q, König = K. Nur Darstellung. */
+export const RANK_LABEL: Record<Rank, string> = {
+  1: 'A', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10', 11: 'J', 12: 'Q', 13: 'K',
 };
 
 export const RANK_NAME_DE: Record<Rank, string> = {

@@ -1,4 +1,4 @@
-import { type Card, RANK_LABEL_DE, SUIT_SYMBOL, cardLabel, isRedSuit } from '@orlan/game';
+import { type Card, RANK_LABEL, SUIT_SYMBOL, cardLabel, isRedSuit } from '@orlan/game';
 
 /**
  * Kleine Karten-Kennzeichnung für Texte (Aufnahme, Zuganzeige, Auswertung):
@@ -8,7 +8,7 @@ export function CardLabel({ card }: { card: Card }) {
   const color = isRedSuit(card.suit) ? 'red' : 'black';
   return (
     <span className={`mini-card mini-card--${color}`} title={cardLabel(card)} aria-label={cardLabel(card)}>
-      <span className="mini-card__rank">{RANK_LABEL_DE[card.rank]}</span>
+      <span className="mini-card__rank">{RANK_LABEL[card.rank]}</span>
       <span className="mini-card__suit" aria-hidden="true">
         {SUIT_SYMBOL[card.suit]}
       </span>

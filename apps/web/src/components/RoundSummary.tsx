@@ -1,5 +1,6 @@
 import type { RoomView } from '@orlan/protocol';
 import { sideLabel } from '../lib/display';
+import { matchEndText, sideMemberNames } from '../lib/texts';
 import { CardList } from './CardLabel';
 import { useServerNow } from '../net/hooks';
 
@@ -18,19 +19,32 @@ export function RoundSummary({ view, onReturnToLobby }: Props) {
   const { score } = result;
   const isHost = view.myPlayerId === view.hostId;
   const finished = match.status === 'finished';
+  const endText = matchEndText(view);
+  const teamNames = (sideId: string) => {
+    const side = match.sides.find((x) => x.id === sideId);
+    return side && side.team !== null ? sideMemberNames(view, side.seats).join(' & ') : null;
+  };
 
   return (
     <div className="overlay" role="dialog" aria-labelledby="summary-title">
       <div className="panel summary">
         <h2 id="summary-title">{finished ? 'Match beendet' : `Runde ${result.roundNumber} – Auswertung`}</h2>
-        {finished && match.winner && <p className="summary__winner">🏆 {sideLabel(view, match.winner)} gewinnt!</p>}
+        {finished && endText && (
+          <p className={`summary__winner summary__winner--${endText.kind}`} role="status">
+            {endText.kind === 'lose' ? '😜 ' : '🏆 '}
+            {endText.text}
+          </p>
+        )}
         <div className="summary__table-wrap">
           <table className="summary__table">
             <thead>
               <tr>
                 <th />
                 {score.stats.map((s) => (
-                  <th key={s.sideId}>{sideLabel(view, s.sideId)}</th>
+                  <th key={s.sideId}>
+                    {sideLabel(view, s.sideId)}
+                    {teamNames(s.sideId) && <small className="summary__names">{teamNames(s.sideId)}</small>}
+                  </th>
                 ))}
               </tr>
             </thead>

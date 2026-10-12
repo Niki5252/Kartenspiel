@@ -35,8 +35,12 @@ export interface MatchTimings {
   cutRevealMs: number;
   /** Zeit für die Wahl "Spieler zuerst / Tisch zuerst" (Regel: 7 Sekunden, startet nach der Schnitt-Animation). */
   dealOrderMs: number;
-  /** Sichtbare Austeilanimation. */
+  /** Sichtbare Austeilanimation der Spielerpakete. */
   dealMs: number;
+  /** Erstes Tisch-Aufdecken: Dauer pro aufgedeckter Tischkarte. */
+  tableRevealCardMs: number;
+  /** Erstes Tisch-Aufdecken: Dauer pro Bube (zeigen, Hinweis, unter das Deck legen). */
+  jackRevealMs: number;
   /** Zugzeit inkl. ggf. Kombinationsauswahl (Regel: 30 Sekunden). */
   turnMs: number;
   /** Zuganimation, bevor der nächste Timer startet (Regel: ca. 1–1,5 s). */
@@ -45,15 +49,25 @@ export interface MatchTimings {
   roundSummaryMs: number;
 }
 
+/**
+ * Dauer der Austeilphase: Spielerpakete, beim ersten Austeilen zusätzlich das Aufdecken der vier Tischkarten
+ * und für jeden aufgedeckten Buben eine eigene, gut nachvollziehbare Darstellung. Reine Darstellungszeit.
+ */
+export function dealDuration(t: MatchTimings, initial: boolean, jackCount: number): number {
+  return t.dealMs + (initial ? TABLE_SIZE * t.tableRevealCardMs + jackCount * t.jackRevealMs : 0);
+}
+
 export const DEFAULT_TIMINGS: MatchTimings = {
   shuffleMs: 1800,
   cutMs: 15000,
   cutRevealMs: 1700,
   dealOrderMs: 7000,
   dealMs: 1800,
+  tableRevealCardMs: 220,
+  jackRevealMs: 2400,
   turnMs: 30000,
   moveAnimationMs: 1300,
-  roundSummaryMs: 12000,
+  roundSummaryMs: 17000, // 12 s + 5 s
 };
 
 export type DealOrder = 'playersFirst' | 'tableFirst';
@@ -121,6 +135,8 @@ export interface RoundState {
   /** true, wenn die Austeilreihenfolge nach Ablauf der 7 s zufällig gewählt wurde. */
   dealOrderAuto: boolean;
   initialMovedJacks: Card[];
+  /** Erstes Tisch-Aufdecken in Reihenfolge (inkl. Buben) – für die Darstellung. */
+  initialReveal: Card[];
   dealsDone: number;
   pending: PendingCapture | null;
   lastMove: MoveRecord | null;
@@ -225,6 +241,7 @@ function newRound(
     dealOrder: null,
     dealOrderAuto: false,
     initialMovedJacks: [],
+    initialReveal: [],
     dealsDone: 0,
     pending: null,
     lastMove: null,
@@ -416,6 +433,7 @@ function performDeal(state: MatchState, initial: boolean, ctx: EngineContext, ev
     round.table = sortTable(result.table);
     movedJacks = result.movedJacks;
     round.initialMovedJacks = result.movedJacks;
+    round.initialReveal = result.revealed;
   };
 
   if (initial && round.dealOrder === 'tableFirst') revealTable();
@@ -430,7 +448,7 @@ function performDeal(state: MatchState, initial: boolean, ctx: EngineContext, ev
   round.dealsDone++;
   round.currentSeat = firstPlayerSeat(round.dealerSeat, state.playerCount);
   events.push({ type: 'cardsDealt', initial, movedJacks });
-  setPhase(round, 'dealing', ctx.now, ctx.now + state.timings.dealMs);
+  setPhase(round, 'dealing', ctx.now, ctx.now + dealDuration(state.timings, initial, movedJacks.length));
 }
 
 function startTurn(state: MatchState, seat: SeatIndex, ctx: EngineContext, events: MatchEvent[]): void {

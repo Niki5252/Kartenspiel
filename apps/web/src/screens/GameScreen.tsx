@@ -4,7 +4,7 @@ import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { CutAnimation, ShuffleAnimation } from '../anim/DeckAnimations';
 import { FlyLayer } from '../anim/FlyLayer';
 import { syncedDelay, useMountElapsed, usePhaseElapsed } from '../anim/phaseClock';
-import { anchors, moveTimeline, phaseVisibility, planFlights, visibilityMilestones } from '../anim/timeline';
+import { anchors, moveTimeline, phaseVisibility, planFlights, visibilityMilestones, visibleDeckBottom, visibleJackNotice } from '../anim/timeline';
 import { SoundToggle } from '../components/SoundToggle';
 import { TimerWarning } from '../sound/TimerWarning';
 import { CutPicker } from '../components/CutPicker';
@@ -19,6 +19,7 @@ import { capturedPiles, pileAtSeat } from '../lib/piles';
 import { fitTableCards } from '../lib/tableFit';
 import { useElementSize } from '../lib/useElementSize';
 import { timerDisplay } from '../lib/timerDisplay';
+import { jackNoticeText } from '../lib/texts';
 import { useConfirm } from '../components/useConfirm';
 import { lastCardLabel, playerAtSeat, seatDisplays, showEmptyTableHint } from '../lib/display';
 import { api, serverNow } from '../net/client';
@@ -126,6 +127,8 @@ export function GameScreen({ view }: { view: RoomView }) {
   const tableSize = useElementSize(tableRef);
   const tableFit = fitTableCards({ width: tableSize.width, height: tableSize.height, count: vis.table.length });
   const tableStyle = { '--table-w': `${tableFit.cardWidth}px` } as CSSProperties;
+  const deckBottom = visibleDeckBottom(view, elapsed);
+  const jackNotice = visibleJackNotice(view, elapsed);
   const liftDelay = syncedDelay(moveTimeline(match.timings.moveAnimationMs).flyInEnd, mountElapsed);
 
   return (
@@ -224,12 +227,17 @@ export function GameScreen({ view }: { view: RoomView }) {
                 <span className="deck-stack__count">{round.deckCount}</span>
               </div>
             )}
-            {round.cut && round.deckCount > 0 && round.phase !== 'cutReveal' && (
+            {deckBottom && round.phase !== 'cutReveal' && (
               <div className="cut-card">
-                <PlayingCard card={round.cut.revealedCard} size="sm" className={round.phase === 'choosingDealOrder' ? 'card--settle' : ''} />
                 <span className="cut-card__text">
-                  <small>{lastCardLabel(view)}</small>
-                  {round.cut.auto && <small className="cut-card__auto">automatisch geschnitten</small>}
+                  {/* Immer die TATSÄCHLICHE unterste Deckkarte (nach Buben-Verschiebung aktualisiert). */}
+                  <span className="cut-card__label">
+                    {lastCardLabel(view)}:{' '}
+                    <span key={deckBottom.id} className="cut-card__card">
+                      <CardLabel card={deckBottom} />
+                    </span>
+                  </span>
+                  {round.cut?.auto && round.dealsDone === 0 && <small className="cut-card__auto">automatisch geschnitten</small>}
                 </span>
               </div>
             )}
@@ -256,11 +264,7 @@ export function GameScreen({ view }: { view: RoomView }) {
             </div>
           )}
 
-          {round.phase === 'dealing' && round.initialMovedJacks.length > 0 && round.table.length > 0 && (
-            <p className="muted small">
-              <CardList cards={round.initialMovedJacks} separator="," /> beim Aufdecken unter das Deck gelegt.
-            </p>
-          )}
+          {jackNotice.length > 0 && <JackNotice jacks={jackNotice} />}
 
           {/* Eigene Auswahl: Panel direkt über den Tischkarten, die gespielte Karte steht im Titel (Flugziel). */}
             {myPending?.options && capture && (
@@ -408,4 +412,20 @@ function isSeatActive(phase: string, currentSeat: number, cutterSeat: number, pe
   if (phase === 'choosingCapture') return pendingSeat === seat;
   if (phase === 'cutting' || phase === 'choosingDealOrder') return cutterSeat === seat;
   return false;
+}
+
+/** Gut lesbare Meldung beim ersten Tisch-Aufdecken: welche Buben ans Ende des Decks gelegt wurden. */
+function JackNotice({ jacks }: { jacks: Card[] }) {
+  const one = jacks.length === 1;
+  return (
+    <p className="jack-notice" role="status" aria-live="polite" aria-label={jackNoticeText(jacks)}>
+      {jacks.map((j, i) => (
+        <span key={j.id}>
+          {i > 0 && (i === jacks.length - 1 ? ' und ' : ', ')}
+          <CardLabel card={j} />
+        </span>
+      ))}{' '}
+      {one ? 'wurde' : 'wurden'} aufgedeckt und ans Ende des Decks gelegt. Der Dealer erhält {one ? 'diese Karte' : 'diese Karten'} am Schluss.
+    </p>
+  );
 }

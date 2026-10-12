@@ -41,6 +41,12 @@ export interface RoundView {
   dealOrderAuto: boolean;
   dealsDone: number;
   initialMovedJacks: Card[];
+  initialReveal: Card[];
+  /**
+   * Tatsächliche unterste Karte des verbleibenden Decks – öffentlich bekannt (Schnittkarte bzw. danach
+   * unter das Deck gelegte Buben). null vor dem Schneiden oder wenn das Deck leer ist.
+   */
+  deckBottom: Card | null;
   pending: PendingCaptureView | null;
   lastMove: MoveRecord | null;
   result: RoundResult | null;
@@ -94,6 +100,8 @@ export function projectMatchView(state: MatchState, viewerSeat: SeatIndex | null
       dealOrderAuto: r.dealOrderAuto,
       dealsDone: r.dealsDone,
       initialMovedJacks: r.initialMovedJacks,
+      initialReveal: r.initialReveal,
+      deckBottom: r.cut && r.deck.length > 0 ? (r.deck[r.deck.length - 1] ?? null) : null,
       pending,
       lastMove: r.lastMove,
       result: r.result,

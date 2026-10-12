@@ -115,3 +115,15 @@ Animationen sind **reine Darstellung** des bereits bestätigten Serverzustands.
 - **Dev-Sitzplan (nur Testraum, 4 Spieler):** `placePlayerOnSeat`/`isValidSeatPlan` (rein, getestet). Das Team folgt
   dem Sitz (Sitz 1+3 = Team 1, Sitz 2+4 = Team 2), belegte Sitze werden getauscht – ungültige Kombinationen sind
   ausgeschlossen. Ein vollständiger Plan wird beim Matchstart von `assignSeats` übernommen.
+
+## Erstes Tisch-Aufdecken mit Buben
+
+- Engine: `revealInitialTable` liefert die Aufdeck-Reihenfolge (`initialReveal`); Buben kommen in dieser Reihenfolge ans
+  Deckende. Die Austeilphase dauert `dealDuration` = Spielerpakete + 4 × `tableRevealCardMs` + Buben × `jackRevealMs`.
+- Sicht: `deckBottom` ist die tatsächliche unterste Deckkarte (öffentlich: Schnittkarte bzw. zuletzt unter das Deck
+  gelegter Bube).
+- Client: `dealPlan` (rein, getestet) plant Pakete, einzelne Tischkarten und Buben-Schritte passend zur Serverphase;
+  `visibleDeckBottom` wechselt die Anzeige genau in dem Moment, in dem ein Bube unter dem Deck ankommt;
+  `visibleJackNotice` + `jackNoticeText` erzeugen die Meldung.
+- Kartenwerte werden über `RANK_LABEL` (A, 2–10, J, Q, K) dargestellt; interne IDs bleiben unverändert.
+- Matchende-Texte: `lib/texts.ts` (`matchEndText`, perspektivabhängig).
