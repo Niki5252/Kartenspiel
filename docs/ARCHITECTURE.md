@@ -124,6 +124,7 @@ Animationen sind **reine Darstellung** des bereits bestätigten Serverzustands.
   gelegter Bube).
 - Client: `dealPlan` (rein, getestet) plant Pakete, einzelne Tischkarten und Buben-Schritte passend zur Serverphase;
   `visibleDeckBottom` wechselt die Anzeige genau in dem Moment, in dem ein Bube unter dem Deck ankommt;
-  `visibleJackNotice` + `jackNoticeText` erzeugen die Meldung.
+  `visibleJackNotice` + `jackNoticeText` erzeugen die Meldung; sie ist `JACK_NOTICE_MS` (3 s) ab dem letzten
+  aufgedeckten Buben sichtbar (`jackNoticeWindow`), notfalls bis in die erste Zugphase hinein.
 - Kartenwerte werden über `RANK_LABEL` (A, 2–10, J, Q, K) dargestellt; interne IDs bleiben unverändert.
 - Matchende-Texte: `lib/texts.ts` (`matchEndText`, perspektivabhängig).

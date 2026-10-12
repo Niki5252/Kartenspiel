@@ -156,13 +156,42 @@ export function visibleDeckBottom(view: RoomView, elapsed: number): Card | null 
   return r.deckBottom;
 }
 
-/** Buben, deren Aufdecken bereits gezeigt wurde (für die Meldung). Bleibt im ersten Zug der Runde sichtbar. */
+/** Sichtbarkeitsdauer der Buben-Meldung nach dem Aufdecken des (zuletzt erschienenen) Buben. */
+export const JACK_NOTICE_MS = 3000;
+
+export interface JackNoticeWindow {
+  /** Buben mit Erscheinungszeitpunkt (ms ab Beginn der Austeilphase). */
+  jacks: Array<{ card: Card; showAt: number }>;
+  /** Ausblendzeitpunkt (ms ab Beginn der Austeilphase): 3 s nach dem letzten Buben. */
+  hideAt: number;
+  /** Dauer der Austeilphase (ab dann zählt die Zeit in der ersten Zugphase weiter). */
+  dealTotal: number;
+}
+
+export function jackNoticeWindow(view: RoomView): JackNoticeWindow | null {
+  const r = view.match?.round;
+  if (!r || r.initialMovedJacks.length === 0 || r.dealsDone !== 1) return null;
+  const plan = dealPlan(view);
+  const jacks = plan.steps.filter((s) => s.isJack).map((s) => ({ card: s.card, showAt: s.startMs }));
+  if (jacks.length === 0) return null;
+  return { jacks, hideAt: jacks[jacks.length - 1]!.showAt + JACK_NOTICE_MS, dealTotal: plan.total };
+}
+
+/**
+ * Buben für die Meldung zum Zeitpunkt `elapsed` der aktuellen Phase.
+ * Erscheint beim Aufdecken, wird bei weiteren Buben aktualisiert und verschwindet ca. 3 s nach dem letzten Buben –
+ * auch wenn dieser Zeitpunkt erst in der ersten Zugphase liegt.
+ */
 export function visibleJackNotice(view: RoomView, elapsed: number): Card[] {
   const r = view.match?.round;
-  if (!r || r.initialMovedJacks.length === 0 || r.dealsDone !== 1) return [];
-  if (r.phase === 'dealing') return dealPlan(view).steps.filter((s) => s.isJack && s.startMs <= elapsed).map((s) => s.card);
-  if (r.phase === 'turn' && r.lastMove === null) return r.initialMovedJacks;
-  return [];
+  const w = jackNoticeWindow(view);
+  if (!r || !w) return [];
+  let t: number;
+  if (r.phase === 'dealing') t = elapsed;
+  else if (r.phase === 'turn' && r.lastMove === null) t = w.dealTotal + elapsed;
+  else return [];
+  if (t >= w.hideAt) return [];
+  return w.jacks.filter((j) => j.showAt <= t).map((j) => j.card);
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +402,18 @@ export function phaseVisibility(view: RoomView): PhaseVisibility {
     const plan = dealPlan(view);
     for (const p of plan.packets) if (p.target.kind === 'seat') vis.handAppearAt[p.target.seat] = p.arriveMs;
     for (const step of plan.steps) if (!step.isJack) vis.tableAppearAt[step.card.id] = step.endMs;
-    vis.extraMilestones = [...plan.bottomChanges.map((c) => c.at), ...plan.steps.filter((s) => s.isJack).map((s) => s.startMs)];
+    const notice = jackNoticeWindow(view);
+    vis.extraMilestones = [
+      ...plan.bottomChanges.map((c) => c.at),
+      ...plan.steps.filter((s) => s.isJack).map((s) => s.startMs),
+      ...(notice ? [notice.hideAt] : []),
+    ];
+  }
+
+  // Buben-Meldung, die erst in der ersten Zugphase ausläuft: dort zum richtigen Zeitpunkt neu rendern.
+  if (r.phase === 'turn' && r.lastMove === null) {
+    const notice = jackNoticeWindow(view);
+    if (notice && notice.hideAt > notice.dealTotal) vis.extraMilestones = [notice.hideAt - notice.dealTotal];
   }
 
   if (r.phase === 'choosingCapture') vis.slotAppearAt = t.flyInEnd;

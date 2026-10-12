@@ -17,7 +17,7 @@ import type { PlayerPublic, RoomView } from '@orlan/protocol';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { dealPlan, visibleDeckBottom, visibleJackNotice } from '../anim/timeline';
+import { JACK_NOTICE_MS, dealPlan, jackNoticeWindow, phaseVisibility, visibleDeckBottom, visibleJackNotice } from '../anim/timeline';
 import { CardLabel } from '../components/CardLabel';
 import { PlayingCard } from '../components/PlayingCard';
 import { shortCard } from './display';
@@ -103,15 +103,70 @@ describe('Anzeige "Letzte Karte" folgt dem echten Deck – auch während der Bub
     expect(visibleDeckBottom(view, first!.at)?.id).toBe('CJ');
     expect(visibleDeckBottom(view, second!.at)?.id).toBe('DJ');
     expect(visibleDeckBottom(view, plan.total)?.id).toBe(view.match!.round.deckBottom!.id);
-    // Meldung wächst schrittweise
+    // Meldung wächst schrittweise und ist am Ende der Austeilphase bereits wieder ausgeblendet
     expect(visibleJackNotice(view, 0).map((c) => c.id)).toEqual(['CJ']);
-    expect(visibleJackNotice(view, plan.total).map((c) => c.id)).toEqual(['CJ', 'DJ']);
+    expect(visibleJackNotice(view, plan.steps.find((x) => x.card.id === 'DJ')!.startMs).map((c) => c.id)).toEqual(['CJ', 'DJ']);
+    expect(visibleJackNotice(view, plan.total)).toEqual([]);
     // Buben-Schritte sind deutlich langsamer als normale Karten (für Menschen nachvollziehbar)
     const steps = plan.steps;
     const jackStep = steps.find((s) => s.isJack)!;
     const normalStep = steps.find((s) => !s.isJack)!;
     expect(jackStep.endMs - jackStep.startMs).toBeGreaterThanOrEqual(2000);
     expect(normalStep.endMs - normalStep.startMs).toBeLessThan(400);
+  });
+
+  it('Meldung erscheint beim Buben, bleibt ca. 3 s sichtbar und verschwindet automatisch', () => {
+    const view = roomView(dealt(['CJ', 'H4', 'S6', 'D8', 'C2']), 0);
+    const w = jackNoticeWindow(view)!;
+    const showAt = w.jacks[0]!.showAt;
+    expect(JACK_NOTICE_MS).toBe(3000);
+    expect(visibleJackNotice(view, showAt).map((c) => c.id)).toEqual(['CJ']); // erscheint beim Aufdecken
+    expect(visibleJackNotice(view, showAt + 2999).map((c) => c.id)).toEqual(['CJ']); // noch sichtbar
+    expect(visibleJackNotice(view, showAt + 3000)).toEqual([]); // automatisch weg
+    expect(w.hideAt - showAt).toBe(3000);
+    // Ausblendzeitpunkt ist ein Meilenstein -> die Oberfläche rendert genau dann neu
+    expect(phaseVisibility(view).extraMilestones).toContain(w.hideAt);
+  });
+
+  it('mehrere Buben: Meldung wird aktualisiert, 3 s ab dem letzten Buben, danach weg', () => {
+    const view = roomView(dealt(['CJ', 'H4', 'HJ', 'SJ', 'S6', 'D8', 'C2']), 0);
+    const w = jackNoticeWindow(view)!;
+    const [a, b, c] = w.jacks;
+    expect(w.jacks.map((j) => j.card.id)).toEqual(['CJ', 'HJ', 'SJ']);
+    expect(visibleJackNotice(view, a!.showAt).map((x) => x.id)).toEqual(['CJ']);
+    expect(visibleJackNotice(view, b!.showAt).map((x) => x.id)).toEqual(['CJ', 'HJ']);
+    expect(visibleJackNotice(view, c!.showAt).map((x) => x.id)).toEqual(['CJ', 'HJ', 'SJ']);
+    expect(w.hideAt).toBe(c!.showAt + 3000);
+    expect(visibleJackNotice(view, w.hideAt - 1)).toHaveLength(3);
+    expect(visibleJackNotice(view, w.hideAt)).toEqual([]);
+  });
+
+  it('läuft die Meldung erst im ersten Zug aus, verschwindet sie dort zur richtigen Zeit', () => {
+    // Spieler zuerst, Bube als letzte aufgedeckte Karte -> 3 s reichen über das Austeilen hinaus
+    const top = [...'C2 C3 C4 C5 C6 C7 C8 C9 D2 D3 D4 D5'.split(' '), 'H2', 'H3', 'H4', 'HJ', 'H5'];
+    const dealing = dealt(top, 'playersFirst');
+    const w = jackNoticeWindow(roomView(dealing, 0))!;
+    expect(w.hideAt).toBeGreaterThan(w.dealTotal);
+    const turn = structuredClone(dealing);
+    turn.round.phase = 'turn';
+    const tv = roomView(turn, 0);
+    const rest = w.hideAt - w.dealTotal;
+    expect(visibleJackNotice(tv, 0).map((x) => x.id)).toEqual(['HJ']);
+    expect(visibleJackNotice(tv, rest - 1)).toHaveLength(1);
+    expect(visibleJackNotice(tv, rest)).toEqual([]);
+    expect(phaseVisibility(tv).extraMilestones).toEqual([rest]);
+  });
+
+  it('letzte Dealer-Karte bleibt unabhängig von der Meldung korrekt', () => {
+    const view = roomView(dealt(['CJ', 'H4', 'DJ', 'S6', 'D8', 'C2']), 0);
+    const w = jackNoticeWindow(view)!;
+    expect(visibleJackNotice(view, w.hideAt)).toEqual([]);
+    expect(visibleDeckBottom(view, w.hideAt)?.id).toBe('DJ');
+    expect(visibleDeckBottom(view, dealPlan(view).total)?.id).toBe('DJ');
+    const turn = structuredClone(view);
+    turn.match!.round.phase = 'turn';
+    expect(visibleJackNotice(turn, 1e6)).toEqual([]);
+    expect(visibleDeckBottom(turn, 1e6)?.id).toBe('DJ');
   });
 
   it('ohne Buben bleibt die Schnittkarte die letzte Karte', () => {
